@@ -1,10 +1,8 @@
 "use client";
-// Carrega leads da API; sem conexão, preserva o estado vazio real.
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+// Carrega leads com cache SWR e revalidação automática após alterações.
+import useSWR from "swr";
 import { Lead } from "@/types";
 export function useLeads() {
-  const [data, setData] = useState<Lead[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
-  useEffect(() => { api<{ items: Lead[] }>("/pipeline/leads?limit=50").then((result) => setData(result.items)).catch((err: Error) => setError(err.message)).finally(() => setLoading(false)); }, []);
-  return { data, loading, error };
+  const { data, error, isLoading, mutate } = useSWR<{ items: Lead[] }>("/api/pipeline/leads?limit=100", async (url: string) => { const response=await fetch(url); const body=await response.json(); if(!response.ok) throw new Error(body.error); return body; }, { refreshInterval: 30_000 });
+  return { data: data?.items ?? [], loading: isLoading, error: error instanceof Error ? error.message : "", mutate };
 }

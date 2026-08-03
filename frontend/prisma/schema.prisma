@@ -1,0 +1,245 @@
+// Modelo relacional completo do CRM. Gere a migração após qualquer alteração.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id             String    @id @default(cuid())
+  name           String
+  email          String    @unique
+  passwordHash   String
+  role           Role      @default(CORRETOR)
+  phone          String?
+  avatarUrl      String?
+  active         Boolean   @default(true)
+  crmEnabled     Boolean   @default(true)
+  disabledReason String?
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  leads          Lead[]
+  goals          Goal[]
+  messages       Message[]
+}
+
+enum Role {
+  ADMIN
+  CORRETOR
+}
+
+model Lead {
+  id             String         @id @default(cuid())
+  name           String
+  phone          String         @unique
+  email          String?
+  cpf            String?
+  birthDate      DateTime?
+  livesCount     Int            @default(1)
+  stage          PipelineStage  @default(NOVO)
+  score          Int            @default(0)
+  temperature    Temperature    @default(FRIO)
+  estimatedValue Decimal?
+  source         LeadSource     @default(WHATSAPP)
+  notes          String?
+  lastActivityAt DateTime?
+  lostReason     String?
+  cancelReason   String?
+  assignedTo     User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId         String?
+  conversations  Conversation[]
+  proposals      Proposal[]
+  tasks          Task[]
+  activities     Activity[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([stage, temperature, score])
+  @@index([userId, lastActivityAt])
+}
+
+enum PipelineStage {
+  NOVO
+  QUALIFICADO
+  PROPOSTA_ENVIADA
+  EM_ANALISE
+  NEGOCIACAO
+  FECHADO
+  PERDIDO
+}
+
+enum Temperature {
+  FRIO
+  MORNO
+  QUENTE
+}
+
+enum LeadSource {
+  WHATSAPP
+  FORMULARIO
+  INDICACAO
+  IMPORTACAO
+  LIGACAO
+}
+
+model Conversation {
+  id           String     @id @default(cuid())
+  lead         Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId       String
+  uazapiChatId String?
+  status       ConvStatus @default(BOT)
+  sentiment    Sentiment  @default(NEUTRO)
+  aiSummary    String?
+  messages     Message[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([leadId])
+}
+
+enum ConvStatus {
+  BOT
+  HUMANO
+  ENCERRADO
+}
+
+enum Sentiment {
+  POSITIVO
+  NEUTRO
+  FRUSTRADO
+  URGENTE
+}
+
+model Message {
+  id             String        @id @default(cuid())
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  sender         MessageSender
+  content        String
+  type           MessageType   @default(TEXT)
+  mediaUrl       String?
+  transcription  String?
+  sentByUser     User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId         String?
+  sentAt         DateTime      @default(now())
+  deliveredAt    DateTime?
+  readAt         DateTime?
+
+  @@index([conversationId, sentAt])
+  @@index([userId])
+}
+
+enum MessageSender {
+  LEAD
+  BOT
+  CORRETOR
+}
+
+enum MessageType {
+  TEXT
+  AUDIO
+  IMAGE
+  DOCUMENT
+}
+
+model Proposal {
+  id           String         @id @default(cuid())
+  lead         Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId       String
+  operator     String
+  plan         String
+  coverage     String
+  monthlyValue Decimal
+  lives        Json
+  pdfUrl       String?
+  status       ProposalStatus @default(RASCUNHO)
+  sentAt       DateTime?
+  viewedAt     DateTime?
+  acceptedAt   DateTime?
+  createdAt    DateTime       @default(now())
+
+  @@index([leadId])
+}
+
+enum ProposalStatus {
+  RASCUNHO
+  ENVIADA
+  VISUALIZADA
+  ACEITA
+  RECUSADA
+}
+
+model Goal {
+  id           String   @id @default(cuid())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  month        Int
+  year         Int
+  targetValue  Decimal
+  currentValue Decimal  @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, month, year])
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId      String
+  title       String
+  description String?
+  dueAt       DateTime
+  done        Boolean   @default(false)
+  doneAt      DateTime?
+  type        TaskType  @default(FOLLOWUP)
+  createdAt   DateTime  @default(now())
+
+  @@index([leadId])
+}
+
+enum TaskType {
+  FOLLOWUP
+  LIGACAO
+  PROPOSTA
+  REATIVACAO
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId    String
+  type      String
+  detail    String
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+}
+
+model AutomationRule {
+  id         String   @id @default(cuid())
+  name       String
+  trigger    String
+  delayHours Int
+  template   String
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+}
+
+model SystemSettings {
+  id                 String       @id @default("global")
+  crmEnabled         Boolean      @default(true)
+  updatePolicy       UpdatePolicy @default(ON_COMPLETION)
+  maintenanceMessage String       @default("CRM temporariamente indisponível para atualização.")
+  updatedAt          DateTime     @updatedAt
+}
+
+enum UpdatePolicy {
+  AUTOMATIC
+  ON_COMPLETION
+}

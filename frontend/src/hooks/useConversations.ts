@@ -1,10 +1,11 @@
 "use client";
 // Carrega o inbox e expõe seleção da conversa ativa.
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import useSWR from "swr";
 import { Conversation } from "@/types";
 export function useConversations() {
-  const [data, setData] = useState<Conversation[]>([]); const [activeId, setActiveId] = useState(""); const [loading, setLoading] = useState(true);
-  useEffect(() => { api<Conversation[]>("/conversations").then((items) => { setData(items); if (items[0]) setActiveId(items[0].id); }).catch(() => undefined).finally(() => setLoading(false)); }, []);
-  return { data, active: data.find((item) => item.id === activeId) ?? data[0], setActiveId, loading };
+  const [activeId, setActiveId] = useState("");
+  const {data=[],isLoading,mutate}=useSWR<Conversation[]>("/api/conversations",async(url:string)=>{const response=await fetch(url);if(!response.ok)throw new Error("Falha ao carregar conversas.");return response.json();},{refreshInterval:10_000});
+  useEffect(()=>{if(!activeId&&data[0])setActiveId(data[0].id)},[activeId,data]);
+  return { data, active: data.find((item) => item.id === activeId) ?? data[0], setActiveId, loading:isLoading, mutate };
 }

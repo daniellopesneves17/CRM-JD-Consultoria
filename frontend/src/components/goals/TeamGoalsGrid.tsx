@@ -1,0 +1,5 @@
+// Grade administrativa de metas com semáforo por corretor.
+import { money } from "@/lib/utils";import type { GoalStatus } from "@/types";
+type Item={id:string;targetValue:number|string;currentValue:number|string;user:{name:string;avatarUrl?:string|null};status:GoalStatus};
+export function TeamGoalsGrid({items}:{items:Item[]}){return <div className="grid gap-3 sm:grid-cols-2">{items.map(item=><div key={item.id} className="rounded border p-4"><div className="flex items-center justify-between"><strong className="text-sm">{item.user.name}</strong><span className={`h-3 w-3 rounded-full ${item.status.color==="green"?"bg-emerald-500":item.status.color==="yellow"?"bg-amber-500":"bg-red-500"}`}/></div><p className="mt-3 text-lg font-semibold">{money(Number(item.currentValue))} <span className="text-xs text-slate-400">/ {money(Number(item.targetValue))}</span></p><div className="mt-2 h-1.5 rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-600" style={{width:`${Math.min(100,item.status.percentage)}%`}}/></div></div>)}</div>}
+
