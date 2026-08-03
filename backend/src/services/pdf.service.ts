@@ -1,5 +1,8 @@
 // Renderiza propostas em PDF. Em produção, envie o Buffer para seu storage e salve a URL.
-import puppeteer from "puppeteer";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import chromium from "@sparticuz/chromium";
+import puppeteer from "puppeteer-core";
 
 export type ProposalPdfData = {
   leadName: string; operator: string; plan: string; coverage: string;
@@ -8,9 +11,29 @@ export type ProposalPdfData = {
 
 const esc = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char] ?? char);
 
+async function browserExecutablePath() {
+  if (process.env.VERCEL || process.platform === "linux") return chromium.executablePath();
+
+  const candidates = [
+    process.env.CHROME_EXECUTABLE_PATH,
+    process.env.PROGRAMFILES && path.join(process.env.PROGRAMFILES, "Google/Chrome/Application/chrome.exe"),
+    process.env["PROGRAMFILES(X86)"] && path.join(process.env["PROGRAMFILES(X86)"], "Google/Chrome/Application/chrome.exe"),
+    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "Google/Chrome/Application/chrome.exe"),
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+  ].filter((candidate): candidate is string => Boolean(candidate));
+
+  const executable = candidates.find((candidate) => existsSync(candidate));
+  if (!executable) throw new Error("Chrome não encontrado. Configure CHROME_EXECUTABLE_PATH.");
+  return executable;
+}
+
 export class PdfService {
   async generate(data: ProposalPdfData): Promise<Buffer> {
-    const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] });
+    const browser = await puppeteer.launch({
+      args: chromium.args,
+      executablePath: await browserExecutablePath(),
+      headless: true
+    });
     try {
       const page = await browser.newPage();
       await page.setContent(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><style>
@@ -28,4 +51,3 @@ export class PdfService {
     }
   }
 }
-

@@ -12,9 +12,12 @@ dotenv.config({ path: path.resolve(backendRoot, ".env"), override: true, quiet: 
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  VERCEL: z.string().optional(),
   PORT: z.coerce.number().default(3001),
   DATABASE_URL: z.string().min(1),
-  REDIS_URL: z.string().default("redis://localhost:6379"),
+  REDIS_URL: z.string().url().optional(),
+  ENABLE_QUEUE_WORKERS: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  ALLOW_VERCEL_PREVIEWS: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   JWT_SECRET: z.string().min(16),
   COMPANY_NAME: z.string().default("CRM JD"),
   ADMIN_EMAIL: z.string().email(),

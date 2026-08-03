@@ -104,3 +104,7 @@ npm run test:e2e
 ```
 
 Antes do uso com dados reais, troque a senha administrativa, configure HTTPS, backups e as políticas de LGPD aplicáveis.
+
+## Deploy na Vercel
+
+O repositório está preparado como monorepo com dois projetos Vercel: `frontend` (Next.js) e `backend` (Fastify). Consulte o guia completo em [`DEPLOY_VERCEL.md`](./DEPLOY_VERCEL.md), incluindo variáveis, Supabase, migrações e ordem de publicação.

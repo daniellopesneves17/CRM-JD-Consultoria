@@ -8,4 +8,6 @@ coverage/
 playwright-report/
 test-results/
 frontend/.data/
+.vercel/
 *.log
+*.tsbuildinfo

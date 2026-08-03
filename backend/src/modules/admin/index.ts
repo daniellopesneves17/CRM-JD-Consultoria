@@ -23,7 +23,7 @@ const routes:FastifyPluginAsync=async(app)=>{
       const leads=user.leads.length;const qualified=user.leads.filter(item=>!["NOVO","PERDIDO"].includes(item.stage)).length;const closed=user.leads.filter(item=>item.stage==="FECHADO").length;
       const revenue=user.leads.flatMap(item=>item.proposals).filter(item=>item.status==="ACEITA").reduce((sum,item)=>sum+Number(item.monthlyValue),0);const goal=user.goals[0];
       const metrics={leads,qualified,closed,revenue,target:Number(goal?.targetValue||0),current:Number(goal?.currentValue||0),averageTicket:closed?revenue/closed:0};
-      return{id:user.id,name:user.name,email:user.email,active:user.active,crmEnabled:user.crmEnabled,createdAt:user.createdAt,lastLoginAt:user.lastLoginAt,metrics,insight:analyze(metrics.target,metrics.current,leads,qualified,closed)};
+      return{id:user.id,name:user.name,email:user.email,role:user.role,active:user.active,crmEnabled:user.crmEnabled,createdAt:user.createdAt,lastLoginAt:user.lastLoginAt,metrics,insight:analyze(metrics.target,metrics.current,leads,qualified,closed)};
     })};
   });
   app.post("/accounts",async(request,reply)=>{
