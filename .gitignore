@@ -1,0 +1,11 @@
+# Arquivos locais, dependências e artefatos que não devem ser versionados.
+.env
+.env.local
+node_modules/
+.next/
+dist/
+coverage/
+playwright-report/
+test-results/
+frontend/.data/
+*.log
