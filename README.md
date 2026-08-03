@@ -107,4 +107,4 @@ Antes do uso com dados reais, troque a senha administrativa, configure HTTPS, ba
 
 ## Deploy na Vercel
 
-O repositório está preparado como monorepo com dois projetos Vercel: `frontend` (Next.js) e `backend` (Fastify). Consulte o guia completo em [`DEPLOY_VERCEL.md`](./DEPLOY_VERCEL.md), incluindo variáveis, Supabase, migrações e ordem de publicação.
+O repositório está preparado como um projeto Vercel Services com dois serviços: `frontend` (Next.js) e `backend` (Fastify), publicados juntos no mesmo domínio. Consulte o guia completo em [`DEPLOY_VERCEL.md`](./DEPLOY_VERCEL.md), incluindo variáveis, Supabase, migrações e validação.

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { Session } from "next-auth";
+import { getBackendUrl } from "@/lib/backend-url";
 
 type SessionWithToken = Session & { accessToken?: string };
 
@@ -12,10 +13,10 @@ export async function proxyToBackend(
   session: Session | null,
   init: RequestInit = {}
 ): Promise<NextResponse | null> {
-  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, "");
+  const backendUrl = getBackendUrl();
   const token = (session as SessionWithToken | null)?.accessToken;
 
-  if (!backendUrl || !token || token === "local-only") {
+  if (!token || token === "local-only") {
     return process.env.NODE_ENV === "production"
       ? configurationError("Integração com a API não configurada.")
       : null;

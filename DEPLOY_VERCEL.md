@@ -1,30 +1,54 @@
 # Deploy do CRM JD na Vercel
 
-Este repositório contém dois aplicativos. Na Vercel, importe o mesmo repositório duas vezes e configure uma pasta raiz diferente em cada projeto.
+O CRM usa **Vercel Services** para publicar o frontend Next.js e a API Fastify juntos, no mesmo projeto, domínio e deployment.
 
-## 1. Projeto da API
+## 1. Criar o projeto
 
-- Repositório: `daniellopesneves17/CRM-JD-Consultoria`
-- Root Directory: `backend`
-- Framework Preset: `Fastify`
-- Node.js: `22.x`
-- Região: São Paulo (`gru1`), já definida em `backend/vercel.json`
+1. Importe `daniellopesneves17/CRM-JD-Consultoria` na Vercel.
+2. Mantenha a raiz do projeto como a raiz do repositório.
+3. Em **Framework Preset**, selecione **Services**.
+4. A Vercel lerá o `vercel.json` da raiz e criará os serviços `frontend` e `backend`.
 
-Configure as variáveis abaixo em Production e Preview usando `backend/.env.example` como referência:
+O roteamento público fica assim:
+
+- `/api/backend/*` → API Fastify
+- todos os demais caminhos → frontend Next.js
+
+O prefixo `/api/backend` é removido pelo Fastify antes do roteamento interno. Assim, `/api/backend/health` executa a rota `/health` da API.
+
+## 2. Variáveis do projeto
+
+Configure as variáveis em **Production** e **Preview**. Como os serviços pertencem ao mesmo projeto, elas são compartilhadas.
+
+### Banco e autenticação da API
 
 - `DATABASE_URL`: Transaction Pooler do Supabase, porta 6543, com `pgbouncer=true`, `connection_limit=1` e `schema=crm`.
 - `DIRECT_URL`: conexão direta ou Session Pooler, porta 5432, para Prisma Migrate.
-- `JWT_SECRET`
-- `ADMIN_EMAIL`
-- `ADMIN_INITIAL_PASSWORD`
-- `COMPANY_NAME`
-- `FRONTEND_URL`: domínio do projeto frontend. Aceita múltiplas URLs separadas por vírgula.
-- `ALLOW_VERCEL_PREVIEWS`: use `true` somente se quiser liberar origens `*.vercel.app` para previews.
-- `ENABLE_QUEUE_WORKERS`: mantenha `false` na Vercel.
+- `JWT_SECRET`: segredo aleatório com pelo menos 32 caracteres.
+- `ADMIN_EMAIL`: e-mail proprietário do CRM.
+- `ADMIN_INITIAL_PASSWORD`: senha usada somente no primeiro seed.
+- `COMPANY_NAME`: `CRM JD`.
+- `ENABLE_QUEUE_WORKERS`: `false`.
 
-`REDIS_URL` é opcional. Workers BullMQ permanentes não são iniciados dentro da Vercel Function; se forem necessários futuramente, hospede o worker em um serviço de execução contínua.
+`BACKEND_SERVICE_URL` é criado automaticamente pelo binding entre os serviços. Não o configure manualmente.
 
-## 2. Banco Supabase
+### Sessão do frontend
+
+- `NEXTAUTH_SECRET`: segredo aleatório com pelo menos 32 caracteres.
+- `NEXTAUTH_URL`: domínio final do deployment, incluindo `https://`.
+- `ADMIN_EMAIL`: o mesmo e-mail configurado na API.
+
+`NEXT_PUBLIC_API_URL` não é obrigatório na Vercel. O frontend usa `/api/backend` no mesmo domínio automaticamente.
+
+### Opcionais
+
+- `FRONTEND_URL`: domínio customizado adicional permitido pelo CORS. O domínio atual da Vercel é autorizado automaticamente.
+- `ALLOW_VERCEL_PREVIEWS`: `true` permite outras origens `*.vercel.app`; mantenha `false` se não precisar.
+- `REDIS_URL`: necessário apenas quando houver Redis externo.
+
+Workers BullMQ permanentes não são iniciados dentro da Vercel Function. Hospede-os futuramente em um serviço de execução contínua.
+
+## 3. Banco Supabase
 
 Depois de configurar as URLs do banco, aplique a migração e crie a conta administrativa uma única vez, em um terminal seguro:
 
@@ -41,32 +65,14 @@ npm run prisma:seed
 
 Nunca execute o seed automaticamente em cada deploy.
 
-## 3. Projeto do frontend
+## 4. Validação
 
-- Repositório: `daniellopesneves17/CRM-JD-Consultoria`
-- Root Directory: `frontend`
-- Framework Preset: `Next.js`
-- Node.js: `22.x`
-- Região: São Paulo (`gru1`), já definida em `frontend/vercel.json`
+Depois do deploy, verifique:
 
-Configure em Production e Preview:
+1. `https://SEU-DOMINIO.vercel.app/api/backend/health`
+2. `https://SEU-DOMINIO.vercel.app/login`
+3. Login administrativo
+4. Criação, bloqueio e exclusão de corretores
+5. Persistência das alterações no Supabase
 
-- `NEXTAUTH_SECRET`
-- `NEXTAUTH_URL`: domínio público do frontend, incluindo `https://`.
-- `BACKEND_URL`: domínio público da API Fastify, incluindo `https://`.
-- `NEXT_PUBLIC_API_URL`: o mesmo domínio público da API.
-- `ADMIN_EMAIL`: o mesmo e-mail definido no backend.
-
-Não configure `ADMIN_PASSWORD` em produção. O armazenamento local é usado somente como contingência no desenvolvimento.
-
-## 4. Ordem recomendada
-
-1. Crie os dois projetos sem publicar dados reais.
-2. Configure o Supabase e todas as variáveis da API.
-3. Faça o primeiro deploy da API e teste `https://SUA-API.vercel.app/health`.
-4. Configure as variáveis do frontend com a URL da API.
-5. Atualize `FRONTEND_URL` na API com o domínio final do frontend e faça um redeploy da API.
-6. Aplique a migração e o seed uma única vez.
-7. Faça o deploy do frontend e teste login, painel administrativo e operações do CRM.
-
-Depois que os dois projetos estiverem conectados ao GitHub, novos commits na `main` gerarão deployments automaticamente.
+Para executar os dois serviços localmente pelo runtime da Vercel, use `vercel dev -L` na raiz do repositório.

@@ -21,10 +21,14 @@ import systemRoutes from "./modules/system/index.js";
 import { QueueService } from "./services/queue.service.js";
 import { AppError } from "./utils/errors.js";
 import { loggerOptions } from "./utils/logger.js";
+import { rewriteServiceUrl } from "./utils/service-url.js";
 
 export async function buildApp() {
-  const app = Fastify({ logger: loggerOptions });
+  const app = Fastify({ logger: loggerOptions, rewriteUrl: rewriteServiceUrl });
   const allowedOrigins = new Set(env.FRONTEND_URL.split(",").map((origin) => origin.trim()).filter(Boolean));
+  for (const vercelHost of [process.env.VERCEL_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL]) {
+    if (vercelHost) allowedOrigins.add(`https://${vercelHost}`);
+  }
   await app.register(cors, {
     credentials: true,
     origin(origin, callback) {
