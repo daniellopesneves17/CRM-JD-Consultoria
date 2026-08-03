@@ -12,10 +12,6 @@ const directUrl =
     ? databaseUrl
     : configuredDirectUrl || databaseUrl;
 
-if (!directUrl) {
-  throw new Error("Configure DIRECT_URL ou DATABASE_URL antes de executar o Prisma.");
-}
-
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -23,6 +19,8 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts"
   },
   datasource: {
-    url: directUrl
+    // `prisma generate` only needs the schema. Database commands still fail with
+    // Prisma's own connection error when neither URL is configured.
+    url: directUrl ?? ""
   }
 });
