@@ -1,4 +1,4 @@
-// Protege o CRM; apenas login e endpoints do NextAuth ficam públicos.
+// Protege o CRM; login e integrações autenticadas por segredo próprio ficam públicas.
 // Barreira leve de navegação; a autorização definitiva ocorre no layout e em cada API.
 import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
@@ -18,6 +18,6 @@ export default async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!login|api/auth|_next/static|_next/image|favicon.ico|jd-favicon.png|jd-logo.png|apple-touch-icon.png).*)"
+    "/((?!login|api/auth|api/health|api/webhook|api/cron|_next/static|_next/image|favicon.ico|jd-favicon.png|jd-logo.png|apple-touch-icon.png).*)"
   ]
 };
