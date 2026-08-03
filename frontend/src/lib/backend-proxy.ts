@@ -16,7 +16,7 @@ export async function proxyToBackend(
   const backendUrl = getBackendUrl();
   const token = (session as SessionWithToken | null)?.accessToken;
 
-  if (!token || token === "local-only") {
+  if (!token) {
     return process.env.NODE_ENV === "production"
       ? configurationError("Integração com a API não configurada.")
       : null;

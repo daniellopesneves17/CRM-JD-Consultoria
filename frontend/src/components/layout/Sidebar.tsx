@@ -25,6 +25,6 @@ export function Sidebar() {
         <Icon size={18}/><span>{label}</span>
       </Link>;
     })}</nav>
-    <div className="border-t border-white/10 p-4 text-xs text-slate-500">Ambiente local<br/><span className="text-amber-400">● Integrações pendentes</span></div>
+    <div className="border-t border-white/10 p-4 text-xs text-slate-500">Banco de dados conectado<br/><span className="text-amber-400">● APIs externas pendentes</span></div>
   </aside>;
 }

@@ -1,10 +1,8 @@
 // Página apresentada aos corretores quando o administrador pausa o CRM.
 import { Wrench } from "lucide-react";
-import { readAdminStore } from "@/lib/admin-store";
 import { getBackendUrl } from "@/lib/backend-url";
 
 async function maintenanceMessage() {
-  if (process.env.NODE_ENV !== "production") return (await readAdminStore()).settings.maintenanceMessage;
   try {
     const response = await fetch(`${getBackendUrl()}/system/settings`, { cache: "no-store" });
     if (!response.ok) throw new Error("API indisponível");
