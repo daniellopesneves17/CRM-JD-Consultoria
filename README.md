@@ -80,7 +80,7 @@ O webhook ignora mensagens enviadas pela própria instância e grupos, normaliza
 4. Aplique as migrations no Supabase antes do primeiro acesso.
 5. Faça o deploy. Pushes na branch `main` publicam automaticamente.
 
-Os cron jobs são declarados na raiz em `vercel.json`. A Vercel envia `Authorization: Bearer $CRON_SECRET`, validado por todos os handlers.
+Os cron jobs são declarados na raiz em `vercel.json`. A Vercel envia `Authorization: Bearer $CRON_SECRET`, validado por todos os handlers. No plano Hobby, `/api/cron/daily` consolida follow-up, reativação e atualização de score em uma execução diária; os endpoints individuais permanecem disponíveis para um agendador externo quando for necessária uma frequência maior.
 
 ## Verificação
 
