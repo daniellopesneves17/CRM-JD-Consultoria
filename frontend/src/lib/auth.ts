@@ -2,6 +2,7 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { readAdminStore, verifyPassword } from "@/lib/admin-store";
+import { getBackendUrl } from "@/lib/backend-url";
 
 type BackendAuth = { token: string; user: { id: string; name: string; email: string; role: string } };
 export const authOptions: NextAuthOptions = {
@@ -12,7 +13,7 @@ export const authOptions: NextAuthOptions = {
     credentials: { email: { label: "E-mail", type: "email" }, password: { label: "Senha", type: "password" } },
     async authorize(credentials) {
       try {
-        const response = await fetch(`${process.env.BACKEND_URL || "http://localhost:3001"}/auth/login`, {
+        const response = await fetch(`${getBackendUrl()}/auth/login`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: credentials?.email, password: credentials?.password })
         });

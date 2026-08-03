@@ -32,6 +32,7 @@ services:
       DATABASE_URL: postgresql://crm_user:crm_pass@postgres:5432/crm_saude
       DIRECT_URL: postgresql://crm_user:crm_pass@postgres:5432/crm_saude
       REDIS_URL: redis://redis:6379
+      ENABLE_QUEUE_WORKERS: "true"
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }

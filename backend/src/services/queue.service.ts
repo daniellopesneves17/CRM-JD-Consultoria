@@ -2,7 +2,6 @@
 import { Queue, Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { PrismaClient } from "@prisma/client";
-import { env } from "../config/env.js";
 
 export const queueNames = ["goal-update"] as const;
 export type QueueName = typeof queueNames[number];
@@ -11,8 +10,9 @@ export type JobPayload = { conversationId?: string; leadId?: string; messageId?:
 export class QueueService {
   readonly queues: Record<QueueName, Queue<JobPayload>>;
   private workers: Worker[] = [];
-  private connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
-  constructor(private prisma: PrismaClient) {
+  private connection: Redis;
+  constructor(private prisma: PrismaClient, redisUrl: string) {
+    this.connection = new Redis(redisUrl, { maxRetriesPerRequest: null });
     this.queues = Object.fromEntries(queueNames.map((name) => [name, new Queue<JobPayload>(name, { connection: this.connection })])) as Record<QueueName, Queue<JobPayload>>;
   }
   async add(name: QueueName, data: JobPayload, options?: { delay?: number }) {

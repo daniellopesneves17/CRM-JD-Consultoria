@@ -1,0 +1,6 @@
+tests/
+dist/
+coverage/
+*.log
+.env
+.env.*

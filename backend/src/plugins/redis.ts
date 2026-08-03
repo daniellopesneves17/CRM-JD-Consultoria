@@ -8,6 +8,7 @@ declare module "fastify" {
 }
 
 export default fp(async (app) => {
+  if (!env.REDIS_URL) return;
   const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
   app.decorate("redis", redis);
   app.addHook("onClose", async () => redis.quit());
