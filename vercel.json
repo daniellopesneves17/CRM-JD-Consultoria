@@ -3,29 +3,10 @@
   "services": {
     "frontend": {
       "root": "frontend",
-      "framework": "nextjs",
-      "bindings": [
-        {
-          "type": "service",
-          "service": "backend",
-          "format": "url",
-          "env": "BACKEND_SERVICE_URL"
-        }
-      ]
-    },
-    "backend": {
-      "root": "backend",
-      "framework": "fastify"
+      "framework": "nextjs"
     }
   },
   "rewrites": [
-    {
-      "source": "/api/backend/(.*)?",
-      "destination": {
-        "type": "service",
-        "service": "backend"
-      }
-    },
     {
       "source": "/(.*)",
       "destination": {
@@ -33,5 +14,10 @@
         "service": "frontend"
       }
     }
+  ],
+  "crons": [
+    { "path": "/api/cron/follow-up", "schedule": "0 * * * *" },
+    { "path": "/api/cron/reactivation", "schedule": "0 12 * * *" },
+    { "path": "/api/cron/score-update", "schedule": "0 */4 * * *" }
   ]
 }

@@ -1,10 +1,8 @@
-// Proteção server-side: somente o e-mail proprietário acessa qualquer rota admin.
-import { getServerSession } from "next-auth";
+// Proteção server-side: somente o perfil administrador acessa qualquer rota admin.
 import { redirect } from "next/navigation";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/auth";
 export default async function AdminLayout({children}:{children:React.ReactNode}) {
-  const session = await getServerSession(authOptions);
-  if (session?.user?.email?.toLowerCase() !== process.env.ADMIN_EMAIL?.toLowerCase()) redirect("/dashboard");
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") redirect("/dashboard");
   return children;
 }
-

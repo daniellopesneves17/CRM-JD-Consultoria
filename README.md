@@ -1,110 +1,118 @@
-# CRM JD — Corretagem de Planos de Saúde
+﻿# CRM JD Consultoria e Vendas
 
-CRM para gestão comercial de corretoras, com pipeline, leads, propostas, metas, métricas e automações. O sistema inicia vazio e não simula dados ou conexões externas.
+CRM full-stack para corretagem de planos de saúde. O único serviço de produção é o Next.js em `frontend/`: interface, autenticação, APIs, IA, WhatsApp, PDF e automações executam como funções serverless na Vercel. O PostgreSQL e o Storage são fornecidos pelo Supabase.
 
-## Tecnologias
+## Módulos
 
-- Node.js 20, Fastify 4 e TypeScript
-- Next.js 14, Tailwind CSS e NextAuth
-- PostgreSQL 15 com Prisma
-- Redis 7 e BullMQ
-- Puppeteer para propostas em PDF
-- Vitest e Playwright
+- Dashboard comercial, pipeline ordenado por score, leads e perfil 360°.
+- Inbox Uazapi com atendimento BOT/HUMANO, sugestão de resposta e envio manual.
+- IA híbrida: resposta rápida, análise profunda, triagem econômica e transcrição.
+- Propostas em PDF, armazenamento privado e envio pelo WhatsApp.
+- Metas por dias úteis, histórico, projeção e semáforo da equipe.
+- Métricas de funil/receita e painel administrativo por corretor.
+- Cron jobs para follow-up, reativação programada e atualização de score.
 
-## Iniciar com Docker
+## Pré-requisitos
 
-1. Copie `.env.example` para `.env`.
-2. Troque `JWT_SECRET` e `NEXTAUTH_SECRET` por segredos com pelo menos 32 caracteres.
-3. Execute:
+- Node.js 22 (o projeto também é compatível com Node 20+).
+- Projeto Supabase, conta Vercel, chave da OpenAI e instância Uazapi v2.
+- Upstash Redis recomendado em produção para rate limiting distribuído.
 
-```bash
-docker compose up --build
-```
-
-Acesse `http://localhost:3000`.
-
-Conta administrativa inicial:
-
-```text
-danilopesedu11@gmail.com
-Definida em `ADMIN_INITIAL_PASSWORD`
-```
-
-O seed cria somente essa conta proprietária. Nenhum lead, conversa, proposta, meta, automação ou métrica fictícia é inserido.
-
-## Variáveis de ambiente
-
-| Variável | Finalidade |
-|---|---|
-| `DATABASE_URL` | Conexão PostgreSQL do Supabase usada pelo Prisma em execução |
-| `DIRECT_URL` | Conexão usada pelo Prisma para migrações |
-| `REDIS_URL` | Conexão Redis usada pelas filas internas |
-| `JWT_SECRET` | Assinatura dos tokens do backend |
-| `NEXTAUTH_SECRET` | Proteção da sessão do frontend |
-| `NEXTAUTH_URL` | URL pública do frontend |
-| `COMPANY_NAME` | Nome exibido pelo CRM |
-| `ADMIN_EMAIL` | Único e-mail autorizado no painel administrativo |
-| `ADMIN_INITIAL_PASSWORD` | Senha inicial do administrador |
-| `BACKEND_URL` | Backend acessado pelo servidor Next.js |
-| `NEXT_PUBLIC_API_URL` | Backend acessado pelo navegador |
-
-## Conectar ao Supabase
-
-O CRM acessa o PostgreSQL do Supabase somente pelo backend Fastify, usando Prisma. As credenciais do banco não devem ser colocadas no frontend nem em variáveis `NEXT_PUBLIC_*`.
-
-1. Crie um projeto Supabase exclusivo para o CRM, de preferência na região de São Paulo.
-2. No painel do Supabase, abra **Connect** e copie as URLs do pooler compatíveis com a região do projeto.
-3. Use o **Transaction Pooler** (porta 6543) em `DATABASE_URL` e o **Session Pooler** (porta 5432) em `DIRECT_URL`, conforme `.env.example`. Use `schema=crm` para manter as tabelas da aplicação fora da API pública do Supabase.
-4. Crie o schema privado e aplique as tabelas:
-
-```sql
-create schema if not exists crm;
-```
+## Instalação local
 
 ```bash
-cd backend
+git clone https://github.com/daniellopesneves17/CRM-JD-Consultoria.git
+cd CRM-JD-Consultoria/frontend
 npm install
+```
+
+Copie `frontend/.env.example` para `frontend/.env.local` e preencha as credenciais. Nunca envie `.env.local`, senha, service role ou tokens ao Git.
+
+```bash
+npx prisma generate
 npx prisma migrate deploy
 npx prisma db seed
 npm run dev
 ```
 
-O painel administrativo, a autenticação e os dados operacionais usam exclusivamente o backend conectado ao Supabase; não existe armazenamento local de contingência em produção.
+Abra `http://localhost:3000`. O seed cria ou atualiza a conta indicada em `ADMIN_EMAIL`, usando `ADMIN_INITIAL_PASSWORD`. Dados demonstrativos só são criados quando `SEED_DEMO_DATA=true`.
 
-## Desenvolvimento local
+## Supabase
 
-Backend:
+1. Crie um projeto e abra **Connect**.
+2. Use o Transaction Pooler (porta 6543) em `DATABASE_URL` com `pgbouncer=true`.
+3. Use a conexão direta ou Session Pooler (porta 5432) em `DIRECT_URL`.
+4. Preserve `schema=crm`: as tabelas operacionais ficam fora do schema `public` exposto pela Data API.
+5. Execute `npx prisma migrate deploy` dentro de `frontend/`.
+6. No Storage, crie os buckets privados `proposals` e `audios`. O servidor usa `SUPABASE_SERVICE_ROLE_KEY` e entrega links assinados; a chave nunca chega ao navegador.
 
-```bash
-cd backend
-npm install
-npx prisma migrate dev --name init
-npx prisma db seed
-npm run dev
+## OpenAI
+
+Configure `OPENAI_API_KEY`. Os modelos são selecionáveis por ambiente:
+
+| Função | Variável | Padrão |
+|---|---|---|
+| Atendimento rápido | `OPENAI_FAST_MODEL` | `gpt-4o` |
+| Score e análise | `OPENAI_DEEP_MODEL` | `gpt-5.6-luna` |
+| Fallback profundo | `OPENAI_DEEP_FALLBACK_MODEL` | `o3` |
+| Sentimento/intenção | `OPENAI_CHEAP_MODEL` | `gpt-4o-mini` |
+| Transcrição | `OPENAI_TRANSCRIPTION_MODEL` | `whisper-1` |
+
+As chamadas usam a Responses API para texto e Audio Transcriptions para mídia. Sem chave, o restante do CRM continua funcionando, mas recursos de IA retornam erro de configuração.
+
+## Uazapi
+
+Preencha `UAZAPI_BASE_URL`, `UAZAPI_TOKEN` e `UAZAPI_WEBHOOK_SECRET`. No painel da instância, configure:
+
+```text
+URL: https://crm-jd-consultoria.vercel.app/api/webhook/uazapi
+Header: x-webhook-secret: VALOR_DE_UAZAPI_WEBHOOK_SECRET
+Eventos: messages, messages_update
 ```
 
-Frontend:
+O webhook ignora mensagens enviadas pela própria instância e grupos, normaliza o DDI 55, evita duplicidade pelo ID externo e responde imediatamente antes do processamento de IA.
+
+## Vercel
+
+1. Importe este repositório e mantenha o framework do projeto como **Services**, pois `vercel.json` aponta o único serviço para `frontend/`.
+2. Cadastre todas as variáveis de `frontend/.env.example` nos ambientes Production e Preview apropriados.
+3. Gere `AUTH_SECRET`, `CRON_SECRET` e `UAZAPI_WEBHOOK_SECRET` com valores aleatórios independentes.
+4. Aplique as migrations no Supabase antes do primeiro acesso.
+5. Faça o deploy. Pushes na branch `main` publicam automaticamente.
+
+Os cron jobs são declarados na raiz em `vercel.json`. A Vercel envia `Authorization: Bearer $CRON_SECRET`, validado por todos os handlers.
+
+## Verificação
 
 ```bash
 cd frontend
-npm install
-npm run dev
-```
-
-## Testes
-
-```bash
-cd backend
-npm run build
-npm test
-
-cd ../frontend
+npm run lint
 npm run build
 npm run test:e2e
 ```
 
-Antes do uso com dados reais, troque a senha administrativa, configure HTTPS, backups e as políticas de LGPD aplicáveis.
+Após o deploy:
 
-## Deploy na Vercel
+```text
+GET /api/health
+GET /login
+```
 
-O repositório está preparado como um projeto Vercel Services com dois serviços: `frontend` (Next.js) e `backend` (Fastify), publicados juntos no mesmo domínio. Consulte o guia completo em [`DEPLOY_VERCEL.md`](./DEPLOY_VERCEL.md), incluindo variáveis, Supabase, migrações e validação.
+O health check deve responder `database: connected`. Para uso real, configure backups do Supabase, retenção de logs sem conteúdo sensível e procedimentos LGPD para CPF, mensagens, áudios e propostas.
+
+## Estrutura principal
+
+```text
+frontend/
+├── prisma/                 schema, seed e migrations
+├── public/                 identidade visual
+└── src/
+    ├── app/api/            Route Handlers e cron jobs
+    ├── components/         interface por domínio
+    ├── hooks/              SWR e revalidação
+    ├── lib/                Prisma, autenticação, datas e segurança
+    ├── services/           OpenAI, Uazapi, PDF, Whisper e Storage
+    └── types/              tipos do domínio
+```
+
+O diretório `backend/` permanece apenas como histórico da versão Fastify e não é mais construído nem roteado na Vercel.

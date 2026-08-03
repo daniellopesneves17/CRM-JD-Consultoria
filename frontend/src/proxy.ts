@@ -1,9 +1,19 @@
 // Protege o CRM; apenas login e endpoints do NextAuth ficam públicos.
-import { withAuth, type NextRequestWithAuth } from "next-auth/middleware";
-import type { NextFetchEvent, NextRequest } from "next/server";
+// Barreira leve de navegação; a autorização definitiva ocorre no layout e em cada API.
+import { getToken } from "next-auth/jwt";
+import { NextResponse, type NextRequest } from "next/server";
 
-export default function proxy(request: NextRequest, event: NextFetchEvent) {
-  return withAuth(request as NextRequestWithAuth, event);
+export default async function proxy(request: NextRequest) {
+  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET });
+  if (!token) {
+    const login = new URL("/login", request.url);
+    login.searchParams.set("callbackUrl", request.url);
+    return NextResponse.redirect(login);
+  }
+  if (request.nextUrl.pathname.startsWith("/admin") && token.role !== "ADMIN") {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+  return NextResponse.next();
 }
 
 export const config = {

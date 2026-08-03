@@ -16,7 +16,7 @@ const links = [
 export function Sidebar() {
   const pathname = usePathname();
   const {data:session}=useSession();
-  const visibleLinks=session?.user?.email?.toLowerCase()==="danilopesedu11@gmail.com"?[...links,["/admin","Admin",ShieldCheck] as const]:links;
+  const visibleLinks=session?.user?.role==="ADMIN"?[...links,["/admin","Admin",ShieldCheck] as const]:links;
   return <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-white/[.06] bg-slate-950 text-slate-300 shadow-2xl shadow-slate-950/10 md:flex">
     <div className="flex h-20 items-center gap-3 border-b border-white/10 px-6"><span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-600"><HeartPulse className="text-white"/></span><div><strong className="block text-white">CRM JD</strong><span className="text-xs text-slate-500">Gestão comercial</span></div></div>
     <nav className="flex-1 space-y-1 px-3 py-5">{visibleLinks.map(([href, label, Icon]) => {
@@ -25,6 +25,6 @@ export function Sidebar() {
         <Icon size={18}/><span>{label}</span>
       </Link>;
     })}</nav>
-    <div className="border-t border-white/10 p-4 text-xs text-slate-500">Banco de dados conectado<br/><span className="text-amber-400">● APIs externas pendentes</span></div>
+    <div className="border-t border-white/10 p-4 text-xs text-slate-500">JD Consultoria e Vendas<br/><span className="text-emerald-400">● Operação protegida</span></div>
   </aside>;
 }
