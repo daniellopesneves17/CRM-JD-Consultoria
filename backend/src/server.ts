@@ -75,6 +75,10 @@ const app = await buildApp();
 
 // A Vercel precisa de um servidor exportado durante a avaliação do módulo.
 // Localmente, o Fastify continua abrindo a porta para o modo watch e o Docker.
+if (env.VERCEL) {
+  await app.ready();
+}
+
 export default app.server;
 
 if (process.env.NODE_ENV !== "test" && !env.VERCEL) {
