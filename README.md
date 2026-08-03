@@ -53,8 +53,8 @@ O seed cria somente essa conta proprietária. Nenhum lead, conversa, proposta, m
 O CRM acessa o PostgreSQL do Supabase somente pelo backend Fastify, usando Prisma. As credenciais do banco não devem ser colocadas no frontend nem em variáveis `NEXT_PUBLIC_*`.
 
 1. Crie um projeto Supabase exclusivo para o CRM, de preferência na região de São Paulo.
-2. No painel do Supabase, abra **Connect** e copie a URL do **Session Pooler** (porta 5432).
-3. Configure `DATABASE_URL` e `DIRECT_URL` conforme o modelo em `.env.example`. Use `schema=crm` para manter as tabelas da aplicação fora da API pública do Supabase.
+2. No painel do Supabase, abra **Connect** e copie as URLs do pooler compatíveis com a região do projeto.
+3. Use o **Transaction Pooler** (porta 6543) em `DATABASE_URL` e o **Session Pooler** (porta 5432) em `DIRECT_URL`, conforme `.env.example`. Use `schema=crm` para manter as tabelas da aplicação fora da API pública do Supabase.
 4. Crie o schema privado e aplique as tabelas:
 
 ```sql
@@ -69,7 +69,7 @@ npx prisma db seed
 npm run dev
 ```
 
-Enquanto a conexão remota não estiver validada, o frontend preserva o armazenamento local de contingência do painel administrativo. Ele deve ser removido somente depois que backend, autenticação e banco estiverem funcionando juntos.
+O painel administrativo, a autenticação e os dados operacionais usam exclusivamente o backend conectado ao Supabase; não existe armazenamento local de contingência em produção.
 
 ## Desenvolvimento local
 

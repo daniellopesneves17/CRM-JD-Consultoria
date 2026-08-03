@@ -98,6 +98,8 @@ model Conversation {
   messages     Message[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+
+  @@index([leadId])
 }
 
 enum ConvStatus {
@@ -129,6 +131,7 @@ model Message {
   readAt         DateTime?
 
   @@index([conversationId, sentAt])
+  @@index([userId])
 }
 
 enum MessageSender {
@@ -159,6 +162,8 @@ model Proposal {
   viewedAt     DateTime?
   acceptedAt   DateTime?
   createdAt    DateTime       @default(now())
+
+  @@index([leadId])
 }
 
 enum ProposalStatus {
@@ -194,6 +199,8 @@ model Task {
   doneAt      DateTime?
   type        TaskType  @default(FOLLOWUP)
   createdAt   DateTime  @default(now())
+
+  @@index([leadId])
 }
 
 enum TaskType {
@@ -210,6 +217,8 @@ model Activity {
   type      String
   detail    String
   createdAt DateTime @default(now())
+
+  @@index([leadId])
 }
 
 model AutomationRule {

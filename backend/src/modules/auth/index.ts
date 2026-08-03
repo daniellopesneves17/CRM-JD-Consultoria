@@ -21,8 +21,17 @@ const authRoutes: FastifyPluginAsync = async (app) => {
   app.post("/refresh", async (request) => {
     const { refreshToken } = z.object({ refreshToken: z.string() }).parse(request.body);
     const payload = app.jwt.verify<{ id: string; role: Role; email: string }>(refreshToken);
-    return { token: app.jwt.sign({ id: payload.id, role: payload.role, email: payload.email }, { expiresIn: "8h" }) };
+    const user = await app.prisma.user.findUnique({ where: { id: payload.id } });
+    if (!user || !user.active) throw new AppError("Sessão inválida ou conta desativada.", 401);
+    const settings = await app.prisma.systemSettings.upsert({ where: { id: "global" }, update: {}, create: { id: "global" } });
+    if (user.role !== Role.ADMIN && (!user.crmEnabled || !settings.crmEnabled)) throw new AppError(settings.maintenanceMessage, 403);
+    return { token: app.jwt.sign({ id: user.id, role: user.role, email: user.email }, { expiresIn: "8h" }) };
   });
+  app.get("/me", { preHandler: [app.authenticate] }, async (request) => ({
+    id: request.user.id,
+    email: request.user.email,
+    role: request.user.role
+  }));
   app.post("/logout", { preHandler: [app.authenticate] }, async () => ({ success: true }));
 };
 export default authRoutes;

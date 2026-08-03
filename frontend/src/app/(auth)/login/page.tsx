@@ -26,7 +26,7 @@ export default function LoginPage() {
       <label className="mt-5 block text-sm font-medium">Senha<span className="relative mt-2 block"><input name="password" type={showPassword?"text":"password"} autoComplete="current-password" required className="h-11 w-full rounded-lg border border-slate-300 px-3 pr-11 outline-none focus:border-brand-500"/><button type="button" onClick={()=>setShowPassword(value=>!value)} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-slate-400 hover:text-slate-700" aria-label={showPassword?"Ocultar senha":"Mostrar senha"}>{showPassword?<EyeOff size={18}/>:<Eye size={18}/>}</button></span></label>
       {error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <Button className="mt-6 w-full" disabled={loading}>{loading ? "Entrando..." : <>Entrar <ArrowRight size={17}/></>}</Button>
-      <p className="mt-6 text-center text-xs text-slate-400">Acesso administrativo local.</p>
+      <p className="mt-6 text-center text-xs text-slate-400">Acesso seguro ao CRM.</p>
     </form></section>
   </main>;
 }
