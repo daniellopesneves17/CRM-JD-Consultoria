@@ -71,8 +71,12 @@ export async function buildApp() {
   return app;
 }
 
-if (process.env.NODE_ENV !== "test") {
-  buildApp()
-    .then((app) => app.listen({ port: env.PORT, host: "0.0.0.0" }))
-    .catch((error: unknown) => { console.error("Falha ao iniciar API:", error); process.exit(1); });
+const app = await buildApp();
+
+// A Vercel precisa de um servidor exportado durante a avaliação do módulo.
+// Localmente, o Fastify continua abrindo a porta para o modo watch e o Docker.
+export default app.server;
+
+if (process.env.NODE_ENV !== "test" && !env.VERCEL) {
+  await app.listen({ port: env.PORT, host: "0.0.0.0" });
 }
