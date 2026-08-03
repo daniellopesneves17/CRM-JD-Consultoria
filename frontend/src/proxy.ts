@@ -6,4 +6,8 @@ export default function proxy(request: NextRequest, event: NextFetchEvent) {
   return withAuth(request as NextRequestWithAuth, event);
 }
 
-export const config = { matcher: ["/((?!login|api/auth|_next/static|_next/image|favicon.ico).*)"] };
+export const config = {
+  matcher: [
+    "/((?!login|api/auth|_next/static|_next/image|favicon.ico|jd-favicon.png|jd-logo.png|apple-touch-icon.png).*)"
+  ]
+};
