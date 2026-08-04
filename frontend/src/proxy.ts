@@ -1,20 +1,20 @@
 // Protege o CRM; login e integrações autenticadas por segredo próprio ficam públicas.
 // Barreira leve de navegação; a autorização definitiva ocorre no layout e em cada API.
-import { getToken } from "next-auth/jwt";
-import { NextResponse, type NextRequest } from "next/server";
+import { auth } from "@/auth";
+import { NextResponse } from "next/server";
 
-export default async function proxy(request: NextRequest) {
-  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET });
-  if (!token) {
+export default auth((request) => {
+  const session = request.auth;
+  if (!session?.user) {
     const login = new URL("/login", request.url);
     login.searchParams.set("callbackUrl", request.url);
     return NextResponse.redirect(login);
   }
-  if (request.nextUrl.pathname.startsWith("/admin") && token.role !== "ADMIN") {
+  if (request.nextUrl.pathname.startsWith("/admin") && session.user.role !== "ADMIN") {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
   return NextResponse.next();
-}
+});
 
 export const config = {
   matcher: [

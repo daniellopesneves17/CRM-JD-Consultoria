@@ -1,5 +1,6 @@
 // Tipos locais do Auth.js v5; necessários enquanto o pacote beta publica apenas source maps no Windows.
 declare module "next-auth" {
+  import type { NextRequest } from "next/server";
   export interface User { id: string; name?: string | null; email?: string | null; image?: string | null; role: "ADMIN" | "CORRETOR"; crmEnabled: boolean }
   export interface Session { user: User; expires: string }
   export interface JWT { sub?: string; role?: "ADMIN" | "CORRETOR"; crmEnabled?: boolean; [key: string]: unknown }
@@ -13,7 +14,10 @@ declare module "next-auth" {
   };
   export default function NextAuth(config: NextAuthConfig): {
     handlers: { GET(request: Request): Promise<Response>; POST(request: Request): Promise<Response> };
-    auth(): Promise<Session | null>;
+    auth: {
+      (): Promise<Session | null>;
+      (handler: (request: NextRequest & { auth: Session | null }) => Response | Promise<Response>): (request: NextRequest) => Promise<Response>;
+    };
     signIn: (...args: unknown[]) => Promise<unknown>;
     signOut: (...args: unknown[]) => Promise<unknown>;
   };
@@ -29,10 +33,3 @@ declare module "next-auth/react" {
   export function signIn(provider?: string, options?: Record<string, unknown>): Promise<{ error?: string | null; ok?: boolean; url?: string | null } | undefined>;
   export function signOut(options?: Record<string, unknown>): Promise<void>;
 }
-
-declare module "next-auth/jwt" {
-  import type { NextRequest } from "next/server";
-  import type { JWT } from "next-auth";
-  export function getToken(args: { req: NextRequest; secret?: string }): Promise<JWT | null>;
-}
-
