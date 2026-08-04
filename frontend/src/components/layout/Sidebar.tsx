@@ -21,7 +21,7 @@ export function Sidebar() {
     <div className="flex h-20 items-center gap-3 border-b border-white/10 px-6"><span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-600"><HeartPulse className="text-white"/></span><div><strong className="block text-white">CRM JD</strong><span className="text-xs text-slate-500">Gestão comercial</span></div></div>
     <nav className="flex-1 space-y-1 px-3 py-5">{visibleLinks.map(([href, label, Icon]) => {
       const active = pathname.startsWith(href);
-      return <Link key={href} href={href} className={cn("flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-all", active ? "bg-gradient-to-r from-brand-600 to-blue-600 text-white shadow-lg shadow-blue-950/20" : "hover:translate-x-0.5 hover:bg-white/[.06] hover:text-white")}>
+      return <Link key={href} href={href} prefetch={true} className={cn("flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-all", active ? "bg-gradient-to-r from-brand-600 to-blue-600 text-white shadow-lg shadow-blue-950/20" : "hover:translate-x-0.5 hover:bg-white/[.06] hover:text-white")}>
         <Icon size={18}/><span>{label}</span>
       </Link>;
     })}</nav>
