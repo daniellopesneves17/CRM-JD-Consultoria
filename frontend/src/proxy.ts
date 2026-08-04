@@ -1,6 +1,6 @@
 // Protege o CRM; login e integrações autenticadas por segredo próprio ficam públicas.
 // Barreira leve de navegação; a autorização definitiva ocorre no layout e em cada API.
-import { auth } from "@/auth";
+import { auth } from "@/auth-session";
 import { NextResponse } from "next/server";
 
 export default auth((request) => {

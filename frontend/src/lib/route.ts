@@ -3,11 +3,16 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { auth } from "@/auth";
+import { getAccountAccess } from "@/lib/account-access";
 
 export async function requireUser() {
   const session = await auth();
   if (!session?.user?.id) return { response: NextResponse.json({ error: "Não autorizado." }, { status: 401 }) } as const;
-  if (!session.user.crmEnabled) return { response: NextResponse.json({ error: "CRM desabilitado para esta conta." }, { status: 403 }) } as const;
+  const account = await getAccountAccess(session.user.id);
+  if (!account?.active || !account.crmEnabled) return { response: NextResponse.json({ error: "CRM desabilitado para esta conta." }, { status: 403 }) } as const;
+  if (!account.systemEnabled && account.role !== "ADMIN") return { response: NextResponse.json({ error: "CRM em manutenção." }, { status: 503 }) } as const;
+  session.user.role = account.role;
+  session.user.crmEnabled = account.crmEnabled;
   return { session } as const;
 }
 
@@ -26,4 +31,3 @@ export function apiError(error: unknown, fallback = "Não foi possível concluir
   console.error("Erro interno do CRM", error instanceof Error ? { name: error.name, message: error.message } : { type: typeof error });
   return NextResponse.json({ error: fallback }, { status: 500 });
 }
-
