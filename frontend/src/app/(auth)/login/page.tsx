@@ -2,17 +2,27 @@
 // Tela de acesso com credenciais e feedback de erro.
 import { FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, HeartPulse, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 export default function LoginPage() {
-  const router = useRouter(); const [loading, setLoading] = useState(false); const [error, setError] = useState(""); const [showPassword,setShowPassword]=useState(false);
+  const [loading, setLoading] = useState(false); const [error, setError] = useState(""); const [showPassword,setShowPassword]=useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setLoading(true); setError("");
     const form = new FormData(event.currentTarget);
-    const result = await signIn("credentials", { email: form.get("email"), password: form.get("password"), redirect: false });
-    setLoading(false); if (result?.error) setError("E-mail ou senha inválidos."); else { router.push("/dashboard"); router.refresh(); }
+    const callbackUrl = safeCallbackUrl(new URLSearchParams(window.location.search).get("callbackUrl"));
+    try {
+      const result = await withTimeout(signIn("credentials", { email: form.get("email"), password: form.get("password"), redirect: false, redirectTo: callbackUrl }), 15_000);
+      if (!result?.ok || result.error) {
+        setError("E-mail ou senha inválidos.");
+        return;
+      }
+      window.location.assign(safeCallbackUrl(result.url) || callbackUrl);
+    } catch {
+      setError("Não foi possível concluir o login. Verifique a conexão e tente novamente.");
+    } finally {
+      setLoading(false);
+    }
   }
   return <main className="relative grid min-h-screen lg:grid-cols-[1.1fr_.9fr]"><div className="absolute right-5 top-5 z-10"><ThemeToggle/></div>
     <section className="hidden overflow-hidden bg-slate-950 p-14 text-white lg:flex lg:flex-col">
@@ -29,4 +39,21 @@ export default function LoginPage() {
       <p className="mt-6 text-center text-xs text-slate-400">Acesso seguro ao CRM.</p>
     </form></section>
   </main>;
+}
+
+function safeCallbackUrl(value: string | null | undefined) {
+  if (!value) return "/dashboard";
+  try {
+    const url = new URL(value, window.location.origin);
+    return url.origin === window.location.origin ? `${url.pathname}${url.search}${url.hash}` : "/dashboard";
+  } catch {
+    return "/dashboard";
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, milliseconds: number) {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error("Login timeout")), milliseconds);
+    promise.then(resolve, reject).finally(() => window.clearTimeout(timeout));
+  });
 }
