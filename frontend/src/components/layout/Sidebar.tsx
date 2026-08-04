@@ -1,7 +1,7 @@
 "use client";
 // Navegação principal. O item ativo é inferido pela rota atual.
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BarChart3, FileText, HeartPulse, Home, LoaderCircle, MessageSquare, Settings, Target, TrendingUp, Users, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,7 +16,6 @@ const links = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const [pendingPath, setPendingPath] = useState<string | null>(null);
   const {data:session}=useSession();
   const visibleLinks=session?.user?.role==="ADMIN"?[...links,["/admin","Admin",ShieldCheck] as const]:links;
@@ -28,8 +27,7 @@ export function Sidebar() {
     <nav className="flex-1 space-y-1 px-3 py-5">{visibleLinks.map(([href, label, Icon]) => {
       const active = (pendingPath ?? pathname).startsWith(href);
       const pending = pendingPath === href && pathname !== href;
-      const prepareRoute = () => router.prefetch(href);
-      return <Link key={href} href={href} onMouseEnter={prepareRoute} onFocus={prepareRoute} onTouchStart={prepareRoute} onClick={() => setPendingPath(href)} className={cn("flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-all", active ? "bg-gradient-to-r from-brand-600 to-blue-600 text-white shadow-lg shadow-blue-950/20" : "hover:translate-x-0.5 hover:bg-white/[.06] hover:text-white")}>
+      return <Link key={href} href={href} onClick={() => setPendingPath(href)} className={cn("flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-all", active ? "bg-gradient-to-r from-brand-600 to-blue-600 text-white shadow-lg shadow-blue-950/20" : "hover:translate-x-0.5 hover:bg-white/[.06] hover:text-white")}>
         {pending?<LoaderCircle className="animate-spin" size={18}/>:<Icon size={18}/>}<span>{label}</span>
       </Link>;
     })}</nav>
