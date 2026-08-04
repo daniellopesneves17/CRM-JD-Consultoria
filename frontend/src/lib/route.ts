@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { auth } from "@/auth";
 import { getAccountAccess } from "@/lib/account-access";
+import { prisma } from "@/lib/prisma";
 
 export async function requireUser() {
   const session = await auth();
@@ -28,6 +29,7 @@ export function apiError(error: unknown, fallback = "Não foi possível concluir
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
     return NextResponse.json({ error: "Já existe um registro com estes dados." }, { status: 409 });
   }
+  void prisma.errorLog.create({ data: { source: "api", message: error instanceof Error ? error.message : fallback, stack: error instanceof Error ? error.stack : undefined } }).catch(() => undefined);
   console.error("Erro interno do CRM", error instanceof Error ? { name: error.name, message: error.message } : { type: typeof error });
   return NextResponse.json({ error: fallback }, { status: 500 });
 }

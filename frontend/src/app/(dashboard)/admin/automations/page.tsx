@@ -1,0 +1,7 @@
+"use client";
+// Controle das seis automações com atualização persistida no banco.
+import useSWR from "swr";
+import { AutomationItem, AutomationToggle } from "@/components/admin/AutomationToggle";
+import { Skeleton } from "@/components/ui/Skeleton";
+const fetcher=async(url:string)=>{const response=await fetch(url);if(!response.ok)throw new Error("Falha ao carregar automações.");return response.json()};
+export default function AdminAutomationsPage(){const{data,error,mutate}=useSWR<{automations:AutomationItem[]}>("/api/admin/automations",fetcher);async function save(id:string,changes:{active?:boolean;delayHours?:number;config?:Record<string,unknown>}){const response=await fetch(`/api/admin/automations/${id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(changes)});if(!response.ok)throw new Error("Não foi possível salvar.");await mutate()}return <><div><p className="label">Operação assistida</p><h2 className="mt-1 text-3xl font-semibold">Automações</h2><p className="mt-2 text-sm text-slate-500">Ative, pause e configure cada rotina sem alterar código.</p></div>{error&&<div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Não foi possível carregar as automações.</div>}<div className="mt-7 grid gap-5 xl:grid-cols-2">{data?data.automations.map(item=><AutomationToggle key={item.id} item={item} onSave={save}/>):Array.from({length:6},(_,index)=><Skeleton key={index} className="h-72"/>)}</div></>}

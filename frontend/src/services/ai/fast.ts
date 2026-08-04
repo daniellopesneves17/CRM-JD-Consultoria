@@ -13,10 +13,10 @@ export async function generateWhatsAppReply(params: {
   triggerType: "new_message" | "follow_up" | "reactivation";
 }) {
   const prompt = params.triggerType === "follow_up" ? FOLLOWUP_PROMPT : params.triggerType === "reactivation" ? REACTIVATION_PROMPT : PERSONA_BASE;
-  return respond({ model: FAST_MODEL, instructions: prompt, input: JSON.stringify(params) });
+  return respond({ model: FAST_MODEL, instructions: prompt, input: JSON.stringify(params), promptType: params.triggerType === "new_message" ? "whatsapp_reply" : params.triggerType });
 }
 
 export async function generatePreAttendance(params: { leadPhone: string; firstMessage: string }) {
-  return respond({ model: FAST_MODEL, instructions: PREATTENDANCE_PROMPT, input: JSON.stringify(params) });
+  return respond({ model: FAST_MODEL, instructions: PREATTENDANCE_PROMPT, input: JSON.stringify(params), promptType: "pre_attendance" });
 }
 
