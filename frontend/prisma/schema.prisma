@@ -34,33 +34,38 @@ enum Role {
 }
 
 model Lead {
-  id             String         @id @default(cuid())
-  name           String
-  phone          String         @unique
-  email          String?
-  cpf            String?
-  birthDate      DateTime?
-  livesCount     Int            @default(1)
-  stage          PipelineStage  @default(NOVO)
-  score          Int            @default(0)
-  temperature    Temperature    @default(FRIO)
-  estimatedValue Decimal?
-  source         LeadSource     @default(WHATSAPP)
-  notes          String?
-  lastActivityAt DateTime?
-  lostReason     String?
-  cancelReason   String?
-  assignedTo     User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
-  userId         String?
-  conversations  Conversation[]
-  proposals      Proposal[]
-  tasks          Task[]
-  activities     Activity[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id              String         @id @default(cuid())
+  name            String
+  phone           String         @unique
+  email           String?
+  cpf             String?
+  birthDate       DateTime?
+  livesCount      Int            @default(1)
+  stage           PipelineStage  @default(NOVO)
+  score           Int            @default(0)
+  temperature     Temperature    @default(FRIO)
+  estimatedValue  Decimal?
+  source          LeadSource     @default(WHATSAPP)
+  notes           String?
+  lastActivityAt  DateTime?
+  lostReason      String?
+  cancelReason    String?
+  assignedTo      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId          String?
+  conversations   Conversation[]
+  proposals       Proposal[]
+  tasks           Task[]
+  activities      Activity[]
+  aiLogs          AiLog[]
+  currentOperator String?
+  contractEndDate DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([stage, temperature, score])
   @@index([userId, lastActivityAt])
+  @@index([stage, contractEndDate])
+  @@index([createdAt])
 }
 
 enum PipelineStage {
@@ -222,13 +227,21 @@ model Activity {
 }
 
 model AutomationRule {
-  id         String   @id @default(cuid())
-  name       String
-  trigger    String
-  delayHours Int
-  template   String
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  id             String    @id @default(cuid())
+  name           String
+  description    String    @default("")
+  trigger        String
+  delayHours     Int
+  template       String
+  model          String    @default("gpt-4o")
+  config         Json?
+  sentCount      Int       @default(0)
+  convertedCount Int       @default(0)
+  lastRunAt      DateTime?
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
 }
 
 model SystemSettings {
@@ -242,4 +255,93 @@ model SystemSettings {
 enum UpdatePolicy {
   AUTOMATIC
   ON_COMPLETION
+}
+
+model AiLog {
+  id               String   @id @default(cuid())
+  model            String
+  promptType       String
+  lead             Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  leadId           String?
+  inputTokens      Int
+  outputTokens     Int
+  estimatedCostUsd Decimal  @db.Decimal(10, 6)
+  latencyMs        Int
+  success          Boolean
+  errorMessage     String?
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([leadId, createdAt])
+  @@index([promptType, createdAt])
+}
+
+model CronLog {
+  id         String    @id @default(cuid())
+  jobName    String
+  startedAt  DateTime
+  finishedAt DateTime?
+  processed  Int       @default(0)
+  errors     Int       @default(0)
+  status     String
+  detail     String?
+
+  @@index([startedAt])
+  @@index([jobName, startedAt])
+}
+
+model ErrorLog {
+  id        String   @id @default(cuid())
+  source    String
+  message   String
+  stack     String?
+  context   Json?
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([resolved, createdAt])
+}
+
+model CompanySettings {
+  id              String   @id @default("default")
+  name            String   @default("JD Consultoria e Vendas")
+  cnpj            String?
+  susep           String?
+  address         String?
+  phone           String?
+  email           String?
+  website         String?
+  logoUrl         String?
+  personaName     String   @default("Ana")
+  personaTone     String   @default("friendly")
+  botStartHour    Int      @default(8)
+  botEndHour      Int      @default(20)
+  welcomeMessage  String?
+  offHoursMessage String?
+  updatedAt       DateTime @updatedAt
+}
+
+model Operator {
+  id                String   @id @default(cuid())
+  name              String   @unique
+  logoUrl           String?
+  commercialContact String?
+  notes             String?
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([active, name])
+}
+
+model ObjectionLibrary {
+  id        String   @id @default(cuid())
+  objection String   @unique
+  response  String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
 }

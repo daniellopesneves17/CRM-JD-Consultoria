@@ -50,3 +50,18 @@ export async function getProfilePicture(phone: string): Promise<string | null> {
   return typeof result.image === "string" ? result.image : null;
 }
 
+export async function getUazapiStatus(signal?: AbortSignal) {
+  if (!process.env.UAZAPI_TOKEN) throw new Error("UAZAPI_TOKEN não configurado.");
+  let lastError: Error | null = null;
+  for (const path of ["/instance/status", "/instance/connectionState"]) {
+    try {
+      const response = await fetch(`${baseUrl()}${path}`, { headers: { Token: process.env.UAZAPI_TOKEN }, signal, cache: "no-store" });
+      if (!response.ok) throw new Error(`Status ${response.status}`);
+      return await response.json() as Record<string, unknown>;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("Falha desconhecida");
+    }
+  }
+  throw lastError ?? new Error("Uazapi indisponível.");
+}
+

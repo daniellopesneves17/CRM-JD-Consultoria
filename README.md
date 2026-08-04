@@ -44,7 +44,7 @@ Abra `http://localhost:3000`. O seed cria ou atualiza a conta indicada em `ADMIN
 3. Use a conexão direta ou Session Pooler (porta 5432) em `DIRECT_URL`.
 4. Preserve `schema=crm`: as tabelas operacionais ficam fora do schema `public` exposto pela Data API.
 5. Execute `npx prisma migrate deploy` dentro de `frontend/`.
-6. No Storage, crie os buckets privados `proposals` e `audios`. O servidor usa `SUPABASE_SERVICE_ROLE_KEY` e entrega links assinados; a chave nunca chega ao navegador.
+6. No Storage, crie os buckets privados `proposals` e `audios` e o bucket público `assets` para logotipos. O servidor usa `SUPABASE_SERVICE_ROLE_KEY`; a chave nunca chega ao navegador.
 
 ## OpenAI
 
@@ -53,8 +53,8 @@ Configure `OPENAI_API_KEY`. Os modelos são selecionáveis por ambiente:
 | Função | Variável | Padrão |
 |---|---|---|
 | Atendimento rápido | `OPENAI_FAST_MODEL` | `gpt-4o` |
-| Score e análise | `OPENAI_DEEP_MODEL` | `gpt-5.6-luna` |
-| Fallback profundo | `OPENAI_DEEP_FALLBACK_MODEL` | `o3` |
+| Score e análise | `OPENAI_DEEP_MODEL` | `o3` |
+| Fallback profundo | `OPENAI_DEEP_FALLBACK_MODEL` | `gpt-4o` |
 | Sentimento/intenção | `OPENAI_CHEAP_MODEL` | `gpt-4o-mini` |
 | Transcrição | `OPENAI_TRANSCRIPTION_MODEL` | `whisper-1` |
 
