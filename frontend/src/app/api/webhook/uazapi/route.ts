@@ -3,6 +3,7 @@ import { MessageType } from "@prisma/client";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { createNotification, notifyAdmins } from "@/lib/notifications";
 import { allowRequest } from "@/lib/rate-limit";
 import { analyzeSentiment, generatePreAttendance, generateWhatsAppReply } from "@/services/ai";
 import { normalizePhone, sendText } from "@/services/uazapi";
@@ -39,6 +40,15 @@ async function processReceived(message: Record<string, unknown>) {
     if (duplicate) return;
   }
   const savedMessage = await prisma.message.create({ data: { conversationId: conversation.id, sender: "LEAD", content: content || transcription || `[${type.toLowerCase()} recebido]`, type, mediaUrl, transcription } });
+  const notification = {
+    type: "NEW_MESSAGE",
+    title: "Nova mensagem no WhatsApp",
+    body: `${lead.name}: ${(content || transcription || `[${type.toLowerCase()}]`).slice(0, 180)}`,
+    href: "/inbox",
+    sourceKey: `message:${externalId || savedMessage.id}`,
+  };
+  if (lead.userId) await createNotification({ ...notification, userId: lead.userId });
+  else await notifyAdmins(notification);
   if (externalId) await prisma.activity.create({ data: { leadId: lead.id, type: "uazapi_message", detail: JSON.stringify({ externalId, messageId: savedMessage.id }) } });
   const analyzedText = transcription || content;
   if (analyzedText && process.env.OPENAI_API_KEY) {

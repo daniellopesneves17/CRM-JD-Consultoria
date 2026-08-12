@@ -3,7 +3,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  turbopack: { root: process.cwd() },
+  allowedDevOrigins: ["127.0.0.1"],
+  ...(process.env.VERCEL ? {} : { turbopack: { root: process.cwd() } }),
   serverExternalPackages: ["@prisma/client", "@react-pdf/renderer", "bcryptjs"]
 };
 

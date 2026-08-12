@@ -10,22 +10,57 @@ datasource db {
 }
 
 model User {
-  id             String    @id @default(cuid())
+  id             String         @id @default(cuid())
   name           String
-  email          String    @unique
+  email          String         @unique
   passwordHash   String
-  role           Role      @default(CORRETOR)
+  role           Role           @default(CORRETOR)
   phone          String?
   avatarUrl      String?
-  active         Boolean   @default(true)
-  crmEnabled     Boolean   @default(true)
+  active         Boolean        @default(true)
+  crmEnabled     Boolean        @default(true)
   disabledReason String?
   lastLoginAt    DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  loginCount     Int            @default(0)
+  sessionVersion Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   leads          Lead[]
   goals          Goal[]
   messages       Message[]
+  accessLogs     AccessLog[]
+  notifications  Notification[]
+}
+
+model AccessLog {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  action    String
+  ip        String?
+  userAgent String?
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  type      String
+  title     String
+  body      String?
+  href      String?
+  sourceKey String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([userId, sourceKey])
+  @@index([userId, readAt, createdAt])
+  @@index([userId, createdAt])
 }
 
 enum Role {
@@ -241,7 +276,6 @@ model AutomationRule {
   active         Boolean   @default(true)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-
 }
 
 model SystemSettings {

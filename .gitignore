@@ -7,6 +7,8 @@ dist/
 coverage/
 playwright-report/
 test-results/
+tmp/
+supabase/.temp/
 frontend/.data/
 .vercel/
 *.log

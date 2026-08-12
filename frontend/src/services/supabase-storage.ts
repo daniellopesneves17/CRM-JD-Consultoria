@@ -3,8 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 
 function storageClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Supabase Storage não configurado.");
+  const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Supabase Storage não configurado. Defina NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SECRET_KEY no servidor.");
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
@@ -19,7 +19,7 @@ export async function uploadFile(bucket: "proposals" | "audios" | "assets", path
 
 export async function uploadPublicAsset(path: string, data: Uint8Array, contentType: string) {
   const client = storageClient();
-  const { error } = await client.storage.from("assets").upload(path, data, { contentType, upsert: true });
+  const { error } = await client.storage.from("assets").upload(path, data, { contentType, cacheControl: "31536000", upsert: false });
   if (error) throw new Error(`Falha no upload: ${error.message}`);
   return client.storage.from("assets").getPublicUrl(path).data.publicUrl;
 }
