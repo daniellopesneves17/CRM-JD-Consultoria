@@ -5,21 +5,20 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { sharedAuthConfig } from "@/auth.config";
+import { rememberPreferenceFromRequest, sessionMaxAge } from "@/lib/remember-session";
 
 const credentialsSchema = z.object({
   email: z.string().trim().email().transform((value) => value.toLowerCase()),
   password: z.string().min(8).max(128)
 });
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
-  ...sharedAuthConfig,
-  providers: [
-    Credentials({
+const credentialsProvider = Credentials({
       credentials: {
         email: { label: "E-mail", type: "email" },
-        password: { label: "Senha", type: "password" }
+        password: { label: "Senha", type: "password" },
+        rememberMe: { label: "Permanecer conectado", type: "checkbox" }
       },
-      async authorize(input: Partial<Record<"email" | "password", unknown>>) {
+      async authorize(input: Partial<Record<"email" | "password", unknown>>, request: Request) {
         const parsed = credentialsSchema.safeParse(input);
         if (!parsed.success) return null;
 
@@ -30,16 +29,39 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const settings = await prisma.systemSettings.findUnique({ where: { id: "global" } });
         if (settings && !settings.crmEnabled && user.role !== "ADMIN") return null;
 
-        await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+        const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+        const loggedUser = await prisma.$transaction(async (tx) => {
+          const updated = await tx.user.update({
+            where: { id: user.id },
+            data: { lastLoginAt: new Date(), loginCount: { increment: 1 } }
+          });
+          await tx.accessLog.create({
+            data: {
+              userId: user.id,
+              action: "login",
+              ip: forwardedFor || request.headers.get("x-real-ip"),
+              userAgent: request.headers.get("user-agent")
+            }
+          });
+          return updated;
+        });
         return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          image: user.avatarUrl,
-          role: user.role,
-          crmEnabled: user.crmEnabled
+          id: loggedUser.id,
+          name: loggedUser.name,
+          email: loggedUser.email,
+          image: loggedUser.avatarUrl,
+          role: loggedUser.role,
+          crmEnabled: loggedUser.crmEnabled,
+          sessionVersion: loggedUser.sessionVersion
         };
       }
-    })
-  ],
+    });
+
+export const { handlers, auth, signIn, signOut } = NextAuth(async (request) => {
+  const preference = await rememberPreferenceFromRequest(request);
+  return {
+    ...sharedAuthConfig,
+    session: { strategy: "jwt", maxAge: sessionMaxAge(preference) },
+    providers: [credentialsProvider],
+  };
 });

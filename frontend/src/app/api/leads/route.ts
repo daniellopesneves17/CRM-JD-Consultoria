@@ -3,6 +3,7 @@ import { LeadSource, PipelineStage, Temperature } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { createNotification } from "@/lib/notifications";
 import { apiError, requireUser } from "@/lib/route";
 import { normalizePhone } from "@/services/uazapi";
 
@@ -39,6 +40,16 @@ export async function POST(request: Request) {
     const data = createSchema.parse(await request.json());
     const userId = access.session.user.role === "ADMIN" ? data.userId ?? access.session.user.id : access.session.user.id;
     const lead = await prisma.lead.create({ data: { ...data, email: data.email || null, userId, lastActivityAt: new Date() } });
+    if (userId !== access.session.user.id) {
+      await createNotification({
+        userId,
+        type: "LEAD_ASSIGNED",
+        title: "Novo lead atribuído",
+        body: lead.name,
+        href: `/leads/${lead.id}`,
+        sourceKey: `lead-assigned:${lead.id}:${userId}`,
+      });
+    }
     return NextResponse.json(lead, { status: 201 });
   } catch (error) {
     return apiError(error, "Não foi possível cadastrar o lead.");

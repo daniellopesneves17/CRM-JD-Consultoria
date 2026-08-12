@@ -2,7 +2,7 @@
 // Tela de acesso com credenciais e feedback de erro.
 import { FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
-import { ArrowRight, Eye, EyeOff, HeartPulse, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, Eye, EyeOff, HeartPulse, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 export default function LoginPage() {
@@ -12,7 +12,7 @@ export default function LoginPage() {
     const form = new FormData(event.currentTarget);
     const callbackUrl = safeCallbackUrl(new URLSearchParams(window.location.search).get("callbackUrl"));
     try {
-      const result = await withTimeout(signIn("credentials", { email: form.get("email"), password: form.get("password"), redirect: false, redirectTo: callbackUrl }), 15_000);
+      const result = await withTimeout(signIn("credentials", { email: form.get("email"), password: form.get("password"), rememberMe: form.get("rememberMe") === "true" ? "true" : "false", redirect: false, redirectTo: callbackUrl }), 15_000);
       if (!result?.ok || result.error) {
         setError("E-mail ou senha inválidos.");
         return;
@@ -33,7 +33,8 @@ export default function LoginPage() {
     <section className="grid place-items-center bg-white p-6 transition-colors dark:bg-slate-900"><form onSubmit={submit} className="w-full max-w-sm">
       <div className="mb-9 lg:hidden"><HeartPulse className="text-brand-600" size={36}/></div><p className="label">Bem-vindo de volta</p><h2 className="mt-2 text-3xl font-semibold tracking-tight">Acesse sua operação</h2><p className="mt-2 text-sm text-slate-500">Use seu e-mail corporativo para continuar.</p>
       <label className="mt-8 block text-sm font-medium">E-mail<input name="email" type="email" autoComplete="username" required className="mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 outline-none focus:border-brand-500"/></label>
-      <label className="mt-5 block text-sm font-medium">Senha<span className="relative mt-2 block"><input name="password" type={showPassword?"text":"password"} autoComplete="current-password" required className="h-11 w-full rounded-lg border border-slate-300 px-3 pr-11 outline-none focus:border-brand-500"/><button type="button" onClick={()=>setShowPassword(value=>!value)} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-slate-400 hover:text-slate-700" aria-label={showPassword?"Ocultar senha":"Mostrar senha"}>{showPassword?<EyeOff size={18}/>:<Eye size={18}/>}</button></span></label>
+      <div className="mt-5"><label htmlFor="login-password" className="block text-sm font-medium">Senha</label><span className="relative mt-2 block"><input id="login-password" name="password" type={showPassword?"text":"password"} autoComplete="current-password" required className="h-11 w-full rounded-lg border border-slate-300 px-3 pr-11 outline-none focus:border-brand-500"/><button type="button" onClick={()=>setShowPassword(value=>!value)} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-slate-400 hover:text-slate-700" aria-label={showPassword?"Ocultar senha":"Mostrar senha"}>{showPassword?<EyeOff size={18}/>:<Eye size={18}/>}</button></span></div>
+      <label className="mt-4 inline-flex cursor-pointer items-center gap-2.5 py-1 text-sm text-slate-600 dark:text-slate-300"><span className="relative h-5 w-5 shrink-0"><input name="rememberMe" type="checkbox" value="true" aria-label="Permanecer conectado" className="peer sr-only"/><span className="absolute inset-0 rounded-md border border-slate-300 bg-white transition-colors peer-checked:border-brand-600 peer-checked:bg-brand-600 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand-500 dark:border-slate-600 dark:bg-slate-800 dark:peer-checked:border-brand-500 dark:peer-checked:bg-brand-500"/><Check className="pointer-events-none absolute inset-0 m-auto scale-75 text-white opacity-0 transition peer-checked:scale-100 peer-checked:opacity-100" size={14}/></span><strong className="font-medium text-slate-700 dark:text-slate-200">Permanecer conectado</strong></label>
       {error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <Button className="mt-6 w-full" disabled={loading}>{loading ? "Entrando..." : <>Entrar <ArrowRight size={17}/></>}</Button>
       <p className="mt-6 text-center text-xs text-slate-400">Acesso seguro ao CRM.</p>

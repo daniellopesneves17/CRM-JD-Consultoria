@@ -1,5 +1,8 @@
 // Configuração do Prisma CLI; migrations usam DIRECT_URL e o cliente usa DATABASE_URL.
 import { defineConfig } from "prisma/config";
+import { loadEnvConfig } from "@next/env";
+
+loadEnvConfig(process.cwd());
 
 export default defineConfig({
   schema: "prisma/schema.prisma",

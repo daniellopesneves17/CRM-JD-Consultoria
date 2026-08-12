@@ -11,6 +11,7 @@ export async function requireUser() {
   if (!session?.user?.id) return { response: NextResponse.json({ error: "Não autorizado." }, { status: 401 }) } as const;
   const account = await getAccountAccess(session.user.id);
   if (!account?.active || !account.crmEnabled) return { response: NextResponse.json({ error: "CRM desabilitado para esta conta." }, { status: 403 }) } as const;
+  if (account.sessionVersion !== session.user.sessionVersion) return { response: NextResponse.json({ error: "Sessão expirada. Entre novamente." }, { status: 401 }) } as const;
   if (!account.systemEnabled && account.role !== "ADMIN") return { response: NextResponse.json({ error: "CRM em manutenção." }, { status: 503 }) } as const;
   session.user.role = account.role;
   session.user.crmEnabled = account.crmEnabled;
