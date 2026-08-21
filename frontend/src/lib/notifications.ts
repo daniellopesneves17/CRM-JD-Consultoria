@@ -10,7 +10,21 @@ type NotificationInput = {
   sourceKey?: string | null;
 };
 
+export const ADMIN_ONLY_NOTIFICATION_TYPES = ["SYSTEM_ERROR"] as const;
+
+export function isAdminOnlyNotificationType(type: string) {
+  return ADMIN_ONLY_NOTIFICATION_TYPES.includes(type as (typeof ADMIN_ONLY_NOTIFICATION_TYPES)[number]);
+}
+
+export function notificationVisibility(role: Role) {
+  return role === "ADMIN" ? {} : { type: { notIn: [...ADMIN_ONLY_NOTIFICATION_TYPES] } };
+}
+
 export async function createNotification(input: NotificationInput) {
+  if (isAdminOnlyNotificationType(input.type)) {
+    const recipient = await prisma.user.findUnique({ where: { id: input.userId }, select: { role: true } });
+    if (recipient?.role !== "ADMIN") return null;
+  }
   if (input.sourceKey) {
     return prisma.notification.upsert({
       where: { userId_sourceKey: { userId: input.userId, sourceKey: input.sourceKey } },

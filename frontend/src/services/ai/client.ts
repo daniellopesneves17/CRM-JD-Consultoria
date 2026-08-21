@@ -26,7 +26,7 @@ export function calculateCost(model: string, usage: Usage) {
   return usage.input_tokens * price.input + usage.output_tokens * price.output;
 }
 
-async function logCall(data: { model: string; promptType: string; leadId?: string; usage: Usage; latencyMs: number; success: boolean; errorMessage?: string }) {
+export async function logAiCall(data: { model: string; promptType: string; leadId?: string; usage: Usage; latencyMs: number; success: boolean; errorMessage?: string }) {
   await prisma.aiLog.create({ data: { model: data.model, promptType: data.promptType, leadId: data.leadId, inputTokens: data.usage.input_tokens, outputTokens: data.usage.output_tokens, estimatedCostUsd: calculateCost(data.model, data.usage), latencyMs: data.latencyMs, success: data.success, errorMessage: data.errorMessage } }).catch((error: unknown) => console.error("Falha ao registrar uso de IA", error instanceof Error ? error.message : "erro desconhecido"));
 }
 
@@ -41,10 +41,10 @@ export async function respond(params: { model: string; instructions: string; inp
     });
     const usage = { input_tokens: response.usage?.input_tokens ?? 0, output_tokens: response.usage?.output_tokens ?? 0 };
     if (!response.output_text) throw new Error("A IA não retornou conteúdo.");
-    await logCall({ model: response.model, promptType: params.promptType, leadId: params.leadId, usage, latencyMs: Date.now() - startedAt, success: true });
+    await logAiCall({ model: response.model, promptType: params.promptType, leadId: params.leadId, usage, latencyMs: Date.now() - startedAt, success: true });
     return response.output_text;
   } catch (error) {
-    await logCall({ model: params.model, promptType: params.promptType, leadId: params.leadId, usage: { input_tokens: 0, output_tokens: 0 }, latencyMs: Date.now() - startedAt, success: false, errorMessage: error instanceof Error ? error.message : "Erro desconhecido" });
+    await logAiCall({ model: params.model, promptType: params.promptType, leadId: params.leadId, usage: { input_tokens: 0, output_tokens: 0 }, latencyMs: Date.now() - startedAt, success: false, errorMessage: error instanceof Error ? error.message : "Erro desconhecido" });
     throw error;
   }
 }

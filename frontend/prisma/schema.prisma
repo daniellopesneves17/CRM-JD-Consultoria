@@ -10,26 +10,27 @@ datasource db {
 }
 
 model User {
-  id             String         @id @default(cuid())
-  name           String
-  email          String         @unique
-  passwordHash   String
-  role           Role           @default(CORRETOR)
-  phone          String?
-  avatarUrl      String?
-  active         Boolean        @default(true)
-  crmEnabled     Boolean        @default(true)
-  disabledReason String?
-  lastLoginAt    DateTime?
-  loginCount     Int            @default(0)
-  sessionVersion Int            @default(0)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  leads          Lead[]
-  goals          Goal[]
-  messages       Message[]
-  accessLogs     AccessLog[]
-  notifications  Notification[]
+  id                String             @id @default(cuid())
+  name              String
+  email             String             @unique
+  passwordHash      String
+  role              Role               @default(CORRETOR)
+  phone             String?
+  avatarUrl         String?
+  active            Boolean            @default(true)
+  crmEnabled        Boolean            @default(true)
+  disabledReason    String?
+  lastLoginAt       DateTime?
+  loginCount        Int                @default(0)
+  sessionVersion    Int                @default(0)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  leads             Lead[]
+  goals             Goal[]
+  messages          Message[]
+  accessLogs        AccessLog[]
+  notifications     Notification[]
+  jdAiConversations JdAiConversation[]
 }
 
 model AccessLog {
@@ -66,6 +67,47 @@ model Notification {
 enum Role {
   ADMIN
   CORRETOR
+}
+
+model JdAiConversation {
+  id        String        @id @default(cuid())
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  title     String        @default("Nova conversa")
+  messages  JdAiMessage[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([userId, updatedAt])
+}
+
+model JdAiMessage {
+  id             String           @id @default(cuid())
+  conversation   JdAiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  role           JdAiMessageRole
+  content        String           @db.Text
+  sources        Json?
+  createdAt      DateTime         @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+enum JdAiMessageRole {
+  USER
+  ASSISTANT
+}
+
+model JdAiBriefing {
+  id           String   @id @default(cuid())
+  researchDate String   @unique
+  title        String
+  content      String   @db.Text
+  sources      Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([createdAt])
 }
 
 model Lead {

@@ -7,6 +7,7 @@ CRM full-stack para corretagem de planos de saúde. O único serviço de produç
 - Dashboard comercial, pipeline ordenado por score, leads e perfil 360°.
 - Inbox Uazapi com atendimento BOT/HUMANO, sugestão de resposta e envio manual.
 - IA híbrida: resposta rápida, análise profunda, triagem econômica e transcrição.
+- JD AI com chat individual, pesquisa web com fontes e radar diário do mercado de planos de saúde.
 - Propostas em PDF, armazenamento privado e envio pelo WhatsApp.
 - Metas por dias úteis, histórico, projeção e semáforo da equipe.
 - Métricas de funil/receita e painel administrativo por corretor.
@@ -57,6 +58,7 @@ Configure `OPENAI_API_KEY`. Os modelos são selecionáveis por ambiente:
 | Fallback profundo | `OPENAI_DEEP_FALLBACK_MODEL` | `gpt-4o` |
 | Sentimento/intenção | `OPENAI_CHEAP_MODEL` | `gpt-4o-mini` |
 | Transcrição | `OPENAI_TRANSCRIPTION_MODEL` | `whisper-1` |
+| JD AI com pesquisa web | `OPENAI_JD_AI_MODEL` | `gpt-4o` |
 
 As chamadas usam a Responses API para texto e Audio Transcriptions para mídia. Sem chave, o restante do CRM continua funcionando, mas recursos de IA retornam erro de configuração.
 
@@ -80,7 +82,7 @@ O webhook ignora mensagens enviadas pela própria instância e grupos, normaliza
 4. Aplique as migrations no Supabase antes do primeiro acesso.
 5. Faça o deploy. Pushes na branch `main` publicam automaticamente.
 
-Os cron jobs são declarados na raiz em `vercel.json`. A Vercel envia `Authorization: Bearer $CRON_SECRET`, validado por todos os handlers. No plano Hobby, `/api/cron/daily` consolida follow-up, reativação e atualização de score em uma execução diária; os endpoints individuais permanecem disponíveis para um agendador externo quando for necessária uma frequência maior.
+Os cron jobs são declarados na raiz em `vercel.json`. A Vercel envia `Authorization: Bearer $CRON_SECRET`, validado por todos os handlers. No plano Hobby, `/api/cron/daily` consolida follow-up, reativação, atualização de score e o radar diário da JD AI em uma execução; os endpoints individuais permanecem disponíveis para um agendador externo quando for necessária uma frequência maior.
 
 ## Verificação
 

@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { money } from "@/lib/utils";
+import { uploadPublicAssetDirect } from "@/lib/direct-public-asset-upload";
 
 const fetcher = async (url: string) => { const response = await fetch(url); if (!response.ok) throw new Error("Falha ao carregar perfil."); return response.json(); };
 type UsersResponse = { users: ManagedUser[]; total: number };
@@ -43,12 +44,17 @@ export default function AdminUserProfilePage() {
 
   async function refresh() { await Promise.all([mutate(), mutateList()]); }
   async function uploadAvatar(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]; if (!file) return;
-    const form = new FormData(); form.set("file", file);
-    const response = await fetch(`/api/admin/users/${params.id}/avatar`, { method: "POST", body: form });
-    const result = await response.json().catch(() => ({})) as { error?: string };
-    if (!response.ok) { toast.error(result.error || "Não foi possível atualizar a foto."); return; }
-    toast.success("Foto atualizada."); await refresh();
+    const input = event.currentTarget;
+    const file = input.files?.[0]; if (!file) return;
+    const toastId = toast.loading("Preparando envio...");
+    try {
+      await uploadPublicAssetDirect(file, `/api/admin/users/${params.id}/avatar`, (percentage) => toast.loading(`Enviando foto... ${percentage}%`, { id: toastId }));
+      toast.success("Foto atualizada.", { id: toastId }); await refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar a foto.", { id: toastId });
+    } finally {
+      input.value = "";
+    }
   }
   async function remove() {
     const response = await fetch(`/api/admin/users/${params.id}`, { method: "DELETE" });
@@ -63,7 +69,7 @@ export default function AdminUserProfilePage() {
     <Link href="/admin/users" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-brand-700"><ArrowLeft size={16}/>Voltar para corretores</Link>
     <div className="mt-5 flex flex-wrap items-end justify-between gap-4"><div><p className="label">Perfil do corretor</p><h2 className="mt-1 text-3xl font-semibold">{data.user.name}</h2><p className="mt-2 text-sm text-slate-500">Acesso, carteira e histórico completo.</p></div><div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={ownAccount} onClick={() => setEditing(true)}><Pencil size={16}/>Editar</Button><Button variant="secondary" disabled={ownAccount} onClick={() => setResetting(true)}><KeyRound size={16}/>Senha</Button><Button onClick={() => setTransferring(true)}><Repeat2 size={16}/>Transferir carteira</Button></div></div>
     <Card className="mt-7 p-6"><div className="flex flex-col gap-6 md:flex-row md:items-center">
-      <div className="relative h-20 w-20 shrink-0">{data.user.avatarUrl ? <img src={data.user.avatarUrl} alt="" className="h-20 w-20 rounded-full object-cover"/> : <span className="grid h-20 w-20 place-items-center rounded-full bg-brand-100 text-2xl font-bold text-brand-700 dark:bg-brand-900/50 dark:text-brand-200">{initials(data.user.name)}</span>}{!ownAccount && <label className="absolute -bottom-1 -right-1 grid h-8 w-8 cursor-pointer place-items-center rounded-full bg-brand-600 text-white shadow" title="Enviar foto"><Camera size={15}/><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void uploadAvatar(event)} className="sr-only"/></label>}</div>
+      <div className="relative h-20 w-20 shrink-0">{data.user.avatarUrl ? <img src={data.user.avatarUrl} alt="" className="h-20 w-20 rounded-full object-cover"/> : <span className="grid h-20 w-20 place-items-center rounded-full bg-brand-100 text-2xl font-bold text-brand-700 dark:bg-brand-900/50 dark:text-brand-200">{initials(data.user.name)}</span>}{!ownAccount && <label className="absolute -bottom-1 -right-1 grid h-8 w-8 cursor-pointer place-items-center rounded-full bg-brand-600 text-white shadow" title="Enviar foto (até 20 MB)"><Camera size={15}/><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void uploadAvatar(event)} className="sr-only"/></label>}</div>
       <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="text-xl font-semibold">{data.user.name}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${data.user.role === "ADMIN" ? "bg-brand-100 text-brand-800 dark:bg-brand-900/50 dark:text-brand-200" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}>{data.user.role === "ADMIN" ? "Admin" : "Corretor"}</span><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${data.user.active ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>{data.user.active ? "Ativo" : "Inativo"}</span></div><p className="mt-1 text-sm text-slate-500">{data.user.email}{data.user.phone ? ` • ${data.user.phone}` : ""}</p><div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-500"><span>Cadastrado em <strong className="text-slate-700 dark:text-slate-300">{new Date(data.user.createdAt).toLocaleDateString("pt-BR")}</strong></span><span>Último acesso <strong className="text-slate-700 dark:text-slate-300">{date(data.user.lastLoginAt)}</strong></span><span>Total de logins <strong className="text-slate-700 dark:text-slate-300">{data.user.loginCount}</strong></span></div></div>
       {!ownAccount && <AlertDialog.Root><AlertDialog.Trigger asChild><Button variant="danger" size="sm"><Trash2 size={15}/>Remover</Button></AlertDialog.Trigger><AlertDialog.Portal><AlertDialog.Overlay className="fixed inset-0 z-50 bg-slate-950/70"/><AlertDialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900"><AlertDialog.Title className="text-lg font-semibold">Remover conta de {data.user.name}?</AlertDialog.Title><AlertDialog.Description className="mt-2 text-sm leading-6 text-slate-500">O login será excluído. Os leads permanecerão no CRM sem responsável e poderão ser redistribuídos.</AlertDialog.Description><div className="mt-6 flex justify-end gap-2"><AlertDialog.Cancel asChild><Button variant="secondary">Cancelar</Button></AlertDialog.Cancel><AlertDialog.Action asChild><Button variant="danger" onClick={() => void remove()}>Remover definitivamente</Button></AlertDialog.Action></div></AlertDialog.Content></AlertDialog.Portal></AlertDialog.Root>}
     </div></Card>
