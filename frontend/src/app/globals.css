@@ -54,4 +54,25 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 @keyframes meter-fill { from { width: 0 } to { width: var(--meter-width) } }
 .goal-meter-fill { animation: meter-fill 1.5s cubic-bezier(.22,1,.36,1) forwards; }
+@media (max-height: 760px) {
+  .jd-ai-welcome { justify-content:flex-start !important; padding-top:.75rem !important; padding-bottom:.75rem !important; }
+  .jd-ai-orb { width:3.5rem !important; height:3.5rem !important; border-radius:1rem !important; }
+  .jd-ai-welcome .label { margin-top:.75rem !important; }
+  .jd-ai-welcome h2 { margin-top:.25rem !important; font-size:1.5rem !important; line-height:2rem !important; }
+  .jd-ai-description { margin-top:.25rem !important; line-height:1.25rem !important; }
+  .jd-ai-suggestions { margin-top:1rem !important; gap:.5rem !important; }
+  .jd-ai-suggestion { padding:.75rem !important; }
+  .jd-ai-suggestion svg { margin-bottom:.375rem !important; }
+  .jd-ai-disclaimer { display:none !important; }
+}
+@media (max-height: 650px) {
+  .jd-ai-welcome { padding-top:.5rem !important; padding-bottom:.5rem !important; }
+  .jd-ai-orb { width:3rem !important; height:3rem !important; }
+  .jd-ai-welcome .label { margin-top:.5rem !important; }
+  .jd-ai-welcome h2 { font-size:1.375rem !important; line-height:1.75rem !important; }
+  .jd-ai-description { display:none !important; }
+  .jd-ai-suggestions { margin-top:.75rem !important; }
+  .jd-ai-suggestion { padding:.5rem .75rem !important; }
+  .jd-ai-suggestion svg { margin-bottom:.25rem !important; }
+}
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition-duration:.01ms !important; } .goal-meter-fill { animation: none; width: var(--meter-width); } }

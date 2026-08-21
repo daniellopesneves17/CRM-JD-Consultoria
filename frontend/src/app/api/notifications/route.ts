@@ -2,20 +2,21 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { apiError, requireUser } from "@/lib/route";
-import { syncActionableNotifications } from "@/lib/notifications";
+import { notificationVisibility, syncActionableNotifications } from "@/lib/notifications";
 
 export async function GET() {
   const access = await requireUser();
   if ("response" in access) return access.response;
   try {
     await syncActionableNotifications({ id: access.session.user.id, role: access.session.user.role });
+    const visibility = notificationVisibility(access.session.user.role);
     const [items, unread] = await Promise.all([
       prisma.notification.findMany({
-        where: { userId: access.session.user.id },
+        where: { userId: access.session.user.id, ...visibility },
         orderBy: { createdAt: "desc" },
         take: 30,
       }),
-      prisma.notification.count({ where: { userId: access.session.user.id, readAt: null } }),
+      prisma.notification.count({ where: { userId: access.session.user.id, readAt: null, ...visibility } }),
     ]);
     return NextResponse.json({ items, unread });
   } catch (error) {
@@ -33,10 +34,12 @@ export async function PATCH(request: Request) {
   if ("response" in access) return access.response;
   try {
     const body = patchSchema.parse(await request.json());
+    const visibility = notificationVisibility(access.session.user.role);
     const result = await prisma.notification.updateMany({
       where: {
         userId: access.session.user.id,
         readAt: null,
+        ...visibility,
         ...(body && "id" in body ? { id: body.id } : {}),
       },
       data: { readAt: new Date() },
