@@ -27,7 +27,7 @@ export function useConversations(ownerId?: string) {
   }, [mutate]);
   useEffect(()=>{if(!activeId&&data[0])setActiveId(data[0].id)},[activeId,data]);
   useEffect(() => {
-    if (ownerId && !isLoading && !data.length && !attemptedInitialSync.current) {
+    if (ownerId && !isLoading && !attemptedInitialSync.current) {
       attemptedInitialSync.current = true;
       void syncWhatsApp();
     }
