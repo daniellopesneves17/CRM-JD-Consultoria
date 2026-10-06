@@ -58,8 +58,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ conversation: { id: conversation.id, title }, userMessage, assistantMessage });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("OPENAI_API_KEY")) {
-      return NextResponse.json({ error: "A JD AI ainda não está conectada à OpenAI. Configure OPENAI_API_KEY." }, { status: 503 });
+    if (error instanceof Error && error.message.includes("AI_API_KEY")) {
+      return NextResponse.json({ error: "A JD AI ainda não está conectada a um provedor de IA. Configure OPENROUTER_API_KEY ou OPENAI_API_KEY." }, { status: 503 });
     }
     return apiError(error, "A JD AI não conseguiu responder agora.");
   }

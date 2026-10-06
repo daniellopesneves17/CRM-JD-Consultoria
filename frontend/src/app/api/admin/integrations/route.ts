@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { apiError, requireAdmin } from "@/lib/route";
 import { getUazapiStatus } from "@/services/uazapi";
 import { getStorageUsage } from "@/services/supabase-storage";
+import { getAiConfiguration } from "@/services/ai/client";
 
 function bytesLabel(bytes: number) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -26,8 +27,16 @@ export async function GET() {
       prisma.aiLog.aggregate({ where: { createdAt: { gte: monthStart } }, _sum: { estimatedCostUsd: true } }),
       withTimeout((signal) => getUazapiStatus(signal)).then((data) => ({ ok: true as const, data })).catch((error: unknown) => ({ ok: false as const, error: error instanceof Error ? error.message : "Erro" })),
       withTimeout(async (signal) => {
-        if (!process.env.OPENAI_API_KEY) throw new Error("Chave não configurada");
-        const response = await fetch("https://api.openai.com/v1/models", { headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, signal, cache: "no-store" });
+        const { apiKey, baseURL, provider } = getAiConfiguration();
+        if (!apiKey) throw new Error("Chave não configurada");
+        const response = await fetch(`${baseURL}/models`, {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            ...(provider === "openrouter" ? { "HTTP-Referer": "https://crm-jd-consultoria.vercel.app", "X-Title": "CRM JD Consultoria" } : {}),
+          },
+          signal,
+          cache: "no-store",
+        });
         if (!response.ok) throw new Error(`Status ${response.status}`);
         return await response.json() as { data?: Array<{ id: string }> };
       }).then((data) => ({ ok: true as const, data })).catch((error: unknown) => ({ ok: false as const, error: error instanceof Error ? error.message : "Erro" })),
@@ -54,7 +63,7 @@ export async function GET() {
           : null;
     return NextResponse.json({
       uazapi: { status: connected ? "connected" : uazapiResult.ok ? "disconnected" : "error", instanceName: process.env.UAZAPI_INSTANCE_NAME ?? process.env.UAZAPI_INSTANCE ?? "JD Consultoria", lastMessage: lastMessage?.sentAt ?? null, qrCodeUrl: qr, detail: uazapiResult.ok ? state || "respondendo" : uazapiResult.error },
-      openai: { status: openaiResult.ok ? "connected" : "error", modelsAvailable: openaiResult.ok ? (openaiResult.data.data ?? []).map((item) => item.id).filter((id) => /^(gpt|o\d)/.test(id)).slice(0, 12) : [], estimatedCostThisMonth: Number(localCost._sum.estimatedCostUsd ?? 0), detail: openaiResult.ok ? null : openaiResult.error },
+      openai: { status: openaiResult.ok ? "connected" : "error", modelsAvailable: openaiResult.ok ? (openaiResult.data.data ?? []).map((item) => item.id).filter((id) => /(^|\/)(gpt|o\d)/.test(id)).slice(0, 12) : [], estimatedCostThisMonth: Number(localCost._sum.estimatedCostUsd ?? 0), detail: openaiResult.ok ? null : openaiResult.error },
       supabase: { status: supabaseResult.ok ? "connected" : "error", totalRows: supabaseResult.ok ? supabaseResult.data.totalRows : 0, storageUsed: supabaseResult.ok ? bytesLabel(supabaseResult.data.storage.bytes) : "0 KB", detail: supabaseResult.ok ? `${supabaseResult.data.storage.buckets} buckets` : supabaseResult.error }
     });
   } catch (error) {

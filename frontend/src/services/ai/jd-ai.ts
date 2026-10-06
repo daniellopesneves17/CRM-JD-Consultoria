@@ -2,7 +2,7 @@ import type { JdAiMessageRole } from "@prisma/client";
 import type { Response as OpenAIResponse } from "openai/resources/responses/responses";
 import { prisma } from "@/lib/prisma";
 import { JdAiSource, normalizeJdAiSources, researchDateKey } from "@/lib/jd-ai";
-import { getOpenAI, logAiCall } from "./client";
+import { getAiConfiguration, getOpenAI, getResponseText, logAiCall } from "./client";
 
 const MODEL = process.env.OPENAI_JD_AI_MODEL ?? process.env.OPENAI_FAST_MODEL ?? "gpt-4o";
 
@@ -37,6 +37,7 @@ function responseSources(response: OpenAIResponse) {
 async function researchedResponse(input: string | Array<{ role: "user" | "assistant"; content: string }>, promptType: string) {
   const startedAt = Date.now();
   try {
+    const { provider } = getAiConfiguration();
     const response = await getOpenAI().responses.create({
       model: MODEL,
       instructions: JD_AI_INSTRUCTIONS,
@@ -46,11 +47,12 @@ async function researchedResponse(input: string | Array<{ role: "user" | "assist
         search_context_size: "medium",
         user_location: { type: "approximate", country: "BR", region: "Rio de Janeiro", timezone: "America/Sao_Paulo" },
       }],
-      include: ["web_search_call.action.sources"],
+      ...(provider === "openai" ? { include: ["web_search_call.action.sources" as const] } : {}),
       max_output_tokens: 1800,
       store: false,
     });
-    if (!response.output_text) throw new Error("A JD AI não retornou conteúdo.");
+    const outputText = getResponseText(response);
+    if (!outputText) throw new Error("A JD AI não retornou conteúdo.");
     await logAiCall({
       model: response.model,
       promptType,
@@ -58,7 +60,7 @@ async function researchedResponse(input: string | Array<{ role: "user" | "assist
       latencyMs: Date.now() - startedAt,
       success: true,
     });
-    return { content: response.output_text, sources: responseSources(response) };
+    return { content: outputText, sources: responseSources(response) };
   } catch (error) {
     await logAiCall({
       model: MODEL,

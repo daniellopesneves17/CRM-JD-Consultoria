@@ -6,6 +6,7 @@ import { createNotification, notifyAdmins } from "@/lib/notifications";
 import { allowRequest } from "@/lib/rate-limit";
 import { shouldUseAutomaticPreAttendance, uazapiChatAvatar, uazapiMediaUrl, uazapiMessageContent, uazapiMessageType } from "@/lib/uazapi-sync";
 import { analyzeSentiment, generatePreAttendance } from "@/services/ai";
+import { isAiConfigured } from "@/services/ai/client";
 import { downloadUazapiMessage, normalizePhone, sendText } from "@/services/uazapi";
 import { transcribeAudio } from "@/services/whisper";
 
@@ -74,13 +75,13 @@ async function processReceived(message: Record<string, unknown>) {
   }
   if (externalId) await prisma.activity.create({ data: { leadId: lead.id, type: "uazapi_message", detail: JSON.stringify({ externalId, messageId: savedMessage.id }) } });
   const analyzedText = transcription || content;
-  if (!fromMe && analyzedText && process.env.OPENAI_API_KEY) {
+  if (!fromMe && analyzedText && isAiConfigured()) {
     const sentiment = await analyzeSentiment(analyzedText).catch(() => null);
     if (sentiment) await prisma.conversation.update({ where: { id: conversation.id }, data: { sentiment: sentiment.sentiment } });
   }
   if (shouldUseAutomaticPreAttendance(fromMe, previousCount)) {
     try {
-      if (analyzedText && process.env.OPENAI_API_KEY && process.env.UAZAPI_TOKEN) {
+      if (analyzedText && isAiConfigured() && process.env.UAZAPI_TOKEN) {
         const reply = await generatePreAttendance({ leadPhone: phone, firstMessage: analyzedText });
         const sent = await sendText(phone, reply);
         const replyMessage = await prisma.message.create({ data: { conversationId: conversation.id, sender: "BOT", content: reply } });

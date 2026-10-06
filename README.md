@@ -49,7 +49,7 @@ Abra `http://localhost:3000`. O seed cria ou atualiza a conta indicada em `ADMIN
 
 ## OpenAI
 
-Configure `OPENAI_API_KEY`. Os modelos são selecionáveis por ambiente:
+Configure `OPENROUTER_API_KEY` para usar a OpenRouter (prioridade) ou `OPENAI_API_KEY` para conexão direta com a OpenAI. Na OpenRouter, use slugs completos, como `openai/gpt-5.6-luna-pro`. Os modelos são selecionáveis por ambiente:
 
 | Função | Variável | Padrão |
 |---|---|---|
