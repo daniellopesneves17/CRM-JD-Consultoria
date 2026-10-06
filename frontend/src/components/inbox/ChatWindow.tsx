@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Bold, Bot, Code2, Italic, Send, Strikethrough, UserRoundCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Bold, Code2, Italic, Send, Strikethrough, UserRoundCheck } from "lucide-react";
 import type { Conversation } from "@/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -58,6 +58,12 @@ export function ChatWindow({ conversation, onChanged, onBack, className }: { con
     onChanged();
   }
 
+  async function toggleUrgent() {
+    const response = await fetch(`/api/conversations/${conversation!.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isUrgent: !conversation!.isUrgent }) });
+    if (response.ok) onChanged();
+    else setError("Não foi possível atualizar a prioridade da conversa.");
+  }
+
   function format(marker: string) {
     const input = textareaRef.current; if (!input) return;
     const start = input.selectionStart; const end = input.selectionEnd;
@@ -76,6 +82,7 @@ export function ChatWindow({ conversation, onChanged, onBack, className }: { con
       <button type="button" onClick={onBack} className="grid h-9 w-9 place-items-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden" aria-label="Voltar às conversas"><ArrowLeft size={19}/></button>
       <ContactAvatar name={conversation.lead.name} src={conversation.lead.avatarUrl} className="h-10 w-10"/>
       <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h2 className="truncate text-sm font-bold text-slate-900 dark:text-white">{conversation.lead.name}</h2>{conversation.sentiment === "URGENTE" && <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:bg-red-950/60 dark:text-red-300">Urgente</span>}</div><p className="mt-0.5 truncate text-[11px] text-slate-500">{conversation.lead.phone} · {conversation.status === "BOT" ? "Pré-atendimento da IA" : "Atendimento humano"}</p></div>
+      <Button variant={conversation.isUrgent ? "secondary" : "secondary"} size="sm" onClick={toggleUrgent} className={cn("hidden sm:inline-flex", conversation.isUrgent && "border-red-300 text-red-700 dark:border-red-900 dark:text-red-300")} title={conversation.isUrgent ? "Remover urgência" : "Definir como urgente"}><AlertTriangle size={15}/>{conversation.isUrgent ? "Remover urgência" : "Definir como urgente"}</Button>
       {conversation.status === "BOT" && <Button variant="secondary" size="sm" onClick={takeOver} className="hidden sm:inline-flex"><UserRoundCheck size={15}/>Assumir</Button>}
     </header>
     <div className="scrollbar min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_25%_20%,rgba(255,255,255,.72),transparent_32%),radial-gradient(circle_at_75%_80%,rgba(219,234,254,.42),transparent_28%)] px-3 py-4 dark:bg-[radial-gradient(circle_at_25%_20%,rgba(30,41,59,.62),transparent_32%),radial-gradient(circle_at_75%_80%,rgba(30,64,175,.12),transparent_28%)] sm:px-5">

@@ -10,7 +10,7 @@ export type Lead = {
   lastMessagePreview?: string | null; sentiment?: "POSITIVO" | "NEUTRO" | "FRUSTRADO" | "URGENTE";
 };
 export type Message = { id: string; sender: "LEAD" | "BOT" | "CORRETOR"; content: string; type: "TEXT" | "AUDIO" | "IMAGE" | "VIDEO" | "DOCUMENT"; sentAt: string; deliveredAt?: string | null; readAt?: string | null; transcription?: string | null; mediaUrl?: string | null };
-export type Conversation = { id: string; status: "BOT" | "HUMANO" | "ENCERRADO"; sentiment: "POSITIVO" | "NEUTRO" | "FRUSTRADO" | "URGENTE"; aiSummary?: string | null; lead: Lead; messages: Message[]; updatedAt: string };
+export type Conversation = { id: string; status: "BOT" | "HUMANO" | "ENCERRADO"; sentiment: "POSITIVO" | "NEUTRO" | "FRUSTRADO" | "URGENTE"; isUrgent: boolean; aiSummary?: string | null; lead: Lead; messages: Message[]; updatedAt: string };
 export type GoalStatus = { percentage: number; color: "red" | "yellow" | "green"; workdaysRemaining: number; dailyNeeded: number; projectedEnd: number; onTrack: boolean };
 export type Proposal = { id:string;operator:string;plan:string;coverage:string;monthlyValue:number|string;status:"RASCUNHO"|"ENVIADA"|"VISUALIZADA"|"ACEITA"|"RECUSADA";pdfUrl?:string|null;createdAt:string };
 export type Activity = { id:string;type:string;detail:string;createdAt:string };

@@ -15,7 +15,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const access = await requireUser(); if ("response" in access) return access.response;
   try {
-    const { id } = await params; const data = z.object({ status: z.nativeEnum(ConvStatus) }).parse(await request.json());
+    const { id } = await params; const data = z.object({ status: z.nativeEnum(ConvStatus).optional(), isUrgent: z.boolean().optional() }).refine((value) => value.status !== undefined || value.isUrgent !== undefined).parse(await request.json());
     const exists = await prisma.conversation.findFirst({ where: { id, ...(access.session.user.role === "ADMIN" ? {} : { lead: { userId: access.session.user.id } }) } });
     if (!exists) return NextResponse.json({ error: "Conversa não encontrada." }, { status: 404 });
     return NextResponse.json(await prisma.conversation.update({ where: { id }, data }));

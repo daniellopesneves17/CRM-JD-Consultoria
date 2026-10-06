@@ -178,6 +178,7 @@ model Conversation {
   uazapiChatId String?
   status       ConvStatus @default(BOT)
   sentiment    Sentiment  @default(NEUTRO)
+  isUrgent     Boolean    @default(false)
   aiSummary    String?
   messages     Message[]
   createdAt    DateTime   @default(now())
