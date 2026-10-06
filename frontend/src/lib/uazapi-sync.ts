@@ -33,7 +33,8 @@ export function uazapiMessageType(value: unknown): MessageType {
   const type = String(value ?? "").toLowerCase();
   if (type.includes("audio")) return "AUDIO";
   if (type.includes("image") || type.includes("sticker")) return "IMAGE";
-  if (type.includes("document") || type.includes("video") || type.includes("ptv")) return "DOCUMENT";
+  if (type.includes("video") || type.includes("ptv")) return "VIDEO";
+  if (type.includes("document")) return "DOCUMENT";
   return "TEXT";
 }
 
@@ -52,6 +53,7 @@ export function uazapiMessageContent(message: UazapiRecord) {
   const type = uazapiMessageType(message.messageType);
   if (type === "AUDIO") return "[áudio]";
   if (type === "IMAGE") return "[imagem]";
+  if (type === "VIDEO") return "[vídeo]";
   if (type === "DOCUMENT") return "[arquivo]";
   if (String(message.messageType ?? "").toLowerCase() === "call") return "[chamada]";
   return "[mensagem do WhatsApp]";
@@ -75,10 +77,23 @@ export function uazapiChatName(chat: UazapiRecord | undefined, message: UazapiRe
     ?? `WhatsApp ${phone.slice(-4)}`;
 }
 
+export function uazapiChatAvatar(record: UazapiRecord | undefined) {
+  const url = stringValue(record?.image)
+    ?? stringValue(record?.imagePreview)
+    ?? stringValue(record?.profilePicUrl)
+    ?? stringValue(record?.wa_profilePicUrl)
+    ?? stringValue(record?.photo);
+  return url && /^https?:\/\//i.test(url) ? url : undefined;
+}
+
 export function uazapiExternalId(message: UazapiRecord) {
   return stringValue(message.messageid) ?? stringValue(message.id);
 }
 
 export function uazapiFingerprint(sender: MessageSender, content: string, sentAt: Date) {
   return `${sender}|${content}|${Math.floor(sentAt.getTime() / 60_000)}`;
+}
+
+export function shouldUseAutomaticPreAttendance(fromMe: boolean, previousCount: number) {
+  return !fromMe && previousCount === 0;
 }

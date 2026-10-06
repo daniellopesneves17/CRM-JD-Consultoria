@@ -18,9 +18,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [mobileMenuOpen]);
 
   if (pathname.startsWith("/admin")) return children;
+  const inbox = pathname.startsWith("/inbox");
   return <div className="min-h-screen bg-slate-50 transition-colors dark:bg-slate-950">
     <Sidebar mobileOpen={mobileMenuOpen} onClose={closeMobileMenu}/>
     {mobileMenuOpen && <button type="button" onClick={closeMobileMenu} className="fixed inset-0 z-30 bg-slate-950/55 backdrop-blur-sm md:hidden" aria-label="Fechar menu"/>}
-    <div className="md:pl-64"><Header onOpenMenu={() => setMobileMenuOpen(true)}/><main className="mx-auto w-full max-w-[1600px] p-5 md:p-8 lg:p-10">{children}</main></div>
+    <div className="md:pl-64"><Header onOpenMenu={() => setMobileMenuOpen(true)}/><main className={inbox ? "h-[calc(100dvh-5rem)] w-full overflow-hidden p-0" : "mx-auto w-full max-w-[1600px] p-5 md:p-8 lg:p-10"}>{children}</main></div>
   </div>;
 }

@@ -115,6 +115,7 @@ model Lead {
   name            String
   phone           String         @unique
   email           String?
+  avatarUrl       String?
   cpf             String?
   birthDate       DateTime?
   livesCount      Int            @default(1)
@@ -226,6 +227,7 @@ enum MessageType {
   TEXT
   AUDIO
   IMAGE
+  VIDEO
   DOCUMENT
 }
 

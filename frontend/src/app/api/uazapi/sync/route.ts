@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError, requireUser } from "@/lib/route";
 import {
+  uazapiChatAvatar,
   uazapiChatName,
   uazapiExternalId,
   uazapiFingerprint,
@@ -30,14 +31,15 @@ async function syncChat(ownerId: string, chatId: string, chat: UazapiRecord | un
   if (phone.length < 10) return { chats: 0, imported: 0, skipped: messages.length };
 
   const sorted = messages
-    .filter((message) => message.isGroup !== true)
+    .filter((message) => message.isGroup !== true && String(message.messageType ?? message.type ?? "").toLowerCase() !== "call")
     .sort((left, right) => uazapiMessageDate(left.messageTimestamp).getTime() - uazapiMessageDate(right.messageTimestamp).getTime());
   if (!sorted.length) return { chats: 0, imported: 0, skipped: messages.length };
 
   const lastActivityAt = uazapiMessageDate(sorted.at(-1)?.messageTimestamp);
+  const avatarUrl = uazapiChatAvatar(chat);
   const lead = await prisma.lead.upsert({
     where: { phone },
-    update: { userId: ownerId, lastActivityAt },
+    update: { userId: ownerId, lastActivityAt, ...(avatarUrl ? { avatarUrl } : {}) },
     create: {
       name: uazapiChatName(chat, sorted.at(-1) ?? {}, phone),
       phone,
@@ -45,6 +47,7 @@ async function syncChat(ownerId: string, chatId: string, chat: UazapiRecord | un
       stage: "NOVO",
       userId: ownerId,
       lastActivityAt,
+      avatarUrl,
     },
   });
 
@@ -56,9 +59,11 @@ async function syncChat(ownerId: string, chatId: string, chat: UazapiRecord | un
     });
   }
   if (!conversation) {
-    conversation = await prisma.conversation.create({ data: { leadId: lead.id, uazapiChatId: chatId } });
+    conversation = await prisma.conversation.create({ data: { leadId: lead.id, uazapiChatId: chatId, status: "HUMANO" } });
   } else if (conversation.uazapiChatId !== chatId) {
-    conversation = await prisma.conversation.update({ where: { id: conversation.id }, data: { uazapiChatId: chatId } });
+    conversation = await prisma.conversation.update({ where: { id: conversation.id }, data: { uazapiChatId: chatId, status: "HUMANO" } });
+  } else if (conversation.status === "BOT") {
+    conversation = await prisma.conversation.update({ where: { id: conversation.id }, data: { status: "HUMANO" } });
   }
 
   const [activities, existingMessages] = await Promise.all([

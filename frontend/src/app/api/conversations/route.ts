@@ -7,9 +7,9 @@ export async function GET() {
   const access = await requireUser(); if ("response" in access) return access.response;
   const items = await prisma.conversation.findMany({
     where: access.session.user.role === "ADMIN" ? {} : { lead: { userId: access.session.user.id } },
-    include: { lead: { include: { assignedTo: { select: { id: true, name: true, avatarUrl: true } } } }, messages: { orderBy: { sentAt: "asc" }, take: 100 } },
+    include: { lead: { include: { assignedTo: { select: { id: true, name: true, avatarUrl: true } } } }, messages: { where: { content: { notIn: ["[chamada]"] } }, orderBy: { sentAt: "desc" }, take: 100 } },
     orderBy: { updatedAt: "desc" }, take: 100
   });
-  return NextResponse.json(items);
+  return NextResponse.json(items.map((item) => ({ ...item, messages: item.messages.reverse() })));
 }
 
