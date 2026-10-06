@@ -27,7 +27,19 @@ export async function GET(request: Request) {
     const result = await downloadUazapiMessage(messageId, config);
     const fileUrl = typeof result.fileURL === "string" ? result.fileURL : "";
     if (!/^https:\/\//i.test(fileUrl)) return NextResponse.json({ error: "Arquivo indisponível." }, { status: 404 });
-    return NextResponse.redirect(fileUrl);
+
+    // A URL retornada pela Uazapi pode expirar ou bloquear requisições do navegador.
+    // O servidor busca o arquivo imediatamente e o entrega pelo próprio CRM.
+    const media = await fetch(fileUrl, { cache: "no-store" });
+    if (!media.ok || !media.body) return NextResponse.json({ error: "Arquivo indisponível." }, { status: 404 });
+    const headers = new Headers({
+      "Cache-Control": "private, max-age=300, stale-while-revalidate=60",
+      "Content-Disposition": "inline",
+      "Content-Type": media.headers.get("content-type") || "application/octet-stream",
+    });
+    const length = media.headers.get("content-length");
+    if (length) headers.set("Content-Length", length);
+    return new Response(media.body, { status: 200, headers });
   } catch (error) {
     return apiError(error, "Não foi possível abrir a mídia do WhatsApp.");
   }
