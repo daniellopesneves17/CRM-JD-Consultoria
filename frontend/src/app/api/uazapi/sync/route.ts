@@ -37,9 +37,10 @@ async function syncChat(ownerId: string, chatId: string, chat: UazapiRecord | un
 
   const lastActivityAt = uazapiMessageDate(sorted.at(-1)?.messageTimestamp);
   const avatarUrl = uazapiChatAvatar(chat);
+  const displayName = uazapiChatName(chat, sorted.at(-1) ?? {}, phone);
   const lead = await prisma.lead.upsert({
     where: { phone },
-    update: { userId: ownerId, lastActivityAt, ...(avatarUrl ? { avatarUrl } : {}) },
+    update: { name: displayName, userId: ownerId, lastActivityAt, ...(avatarUrl ? { avatarUrl } : {}) },
     create: {
       name: uazapiChatName(chat, sorted.at(-1) ?? {}, phone),
       phone,

@@ -43,6 +43,7 @@ async function processReceived(message: Record<string, unknown>, instanceToken?:
   const externalId = asString(message.messageid) ?? asString(message.id);
   const displayName = fromMe ? `WhatsApp ${phone.slice(-4)}` : asString(message.pushName) ?? asString(message.senderName) ?? `WhatsApp ${phone.slice(-4)}`;
   const avatarUrl = uazapiChatAvatar(message);
+  const contactName = uazapiChatName(message, message, phone);
 
   const owner = await configuredOwner(instanceToken);
   if (!owner) throw new Error("Responsável da Uazapi não configurado.");
@@ -50,7 +51,7 @@ async function processReceived(message: Record<string, unknown>, instanceToken?:
   const ownerData = owner ? { userId: owner.id } : {};
   const lead = await prisma.lead.upsert({
     where: { phone },
-    update: { lastActivityAt: new Date(), ...(avatarUrl ? { avatarUrl } : {}), ...ownerData },
+    update: { name: contactName, lastActivityAt: new Date(), ...(avatarUrl ? { avatarUrl } : {}), ...ownerData },
     create: { name: displayName, phone, avatarUrl, stage: "NOVO", source: "WHATSAPP", lastActivityAt: new Date(), ...ownerData },
   });
   const mediaUrl = externalId ? uazapiMediaUrl(message, lead.id) : null;
