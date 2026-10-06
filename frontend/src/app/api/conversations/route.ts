@@ -3,10 +3,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/route";
 
-export async function GET() {
+export async function GET(request: Request) {
   const access = await requireUser(); if ("response" in access) return access.response;
+  const ownerId = new URL(request.url).searchParams.get("ownerId")?.trim() || null;
+  if (access.session.user.role === "ADMIN" && !ownerId) return NextResponse.json([]);
   const items = await prisma.conversation.findMany({
-    where: access.session.user.role === "ADMIN" ? {} : { lead: { userId: access.session.user.id } },
+    where: access.session.user.role === "ADMIN" ? { lead: { userId: ownerId! } } : { lead: { userId: access.session.user.id } },
     include: { lead: { include: { assignedTo: { select: { id: true, name: true, avatarUrl: true } } } }, messages: { where: { content: { notIn: ["[chamada]"] } }, orderBy: { sentAt: "desc" }, take: 100 } },
     orderBy: { updatedAt: "desc" }, take: 100
   });

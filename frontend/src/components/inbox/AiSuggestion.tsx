@@ -4,13 +4,13 @@
 import { useState } from "react";
 import { Sparkles, X } from "lucide-react";
 
-export function AiSuggestion({ conversationId, onUse }: { conversationId: string; onUse: (text: string) => void }) {
+export function AiSuggestion({ conversationId, ownerId, onUse }: { conversationId: string; ownerId?: string; onUse: (text: string) => void }) {
   const [suggestion, setSuggestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   async function generate() {
     setLoading(true); setError("");
-    const response = await fetch(`/api/conversations/${conversationId}/reply`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ send: false }) });
+    const response = await fetch(`/api/conversations/${conversationId}/reply`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ send: false, ...(ownerId ? { ownerId } : {}) }) });
     const body = await response.json().catch(() => ({})) as { suggestion?: string; error?: string };
     if (response.ok && body.suggestion) setSuggestion(body.suggestion); else setError(body.error || "Não foi possível gerar a sugestão.");
     setLoading(false);

@@ -30,7 +30,7 @@ function dayLabel(value: string) {
   return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: date.getFullYear() === today.getFullYear() ? undefined : "numeric" });
 }
 
-export function ChatWindow({ conversation, onChanged, onBack, className }: { conversation?: Conversation; onChanged: () => void; onBack: () => void; className?: string }) {
+export function ChatWindow({ conversation, ownerId, onChanged, onBack, className }: { conversation?: Conversation; ownerId?: string; onChanged: () => void; onBack: () => void; className?: string }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -47,19 +47,19 @@ export function ChatWindow({ conversation, onChanged, onBack, className }: { con
     event.preventDefault();
     if (!text.trim() || sending) return;
     setSending(true); setError("");
-    const response = await fetch("/api/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conversationId: conversation!.id, content: text.trim() }) });
+    const response = await fetch("/api/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conversationId: conversation!.id, content: text.trim(), ...(ownerId ? { ownerId } : {}) }) });
     if (response.ok) { setText(""); if (textareaRef.current) textareaRef.current.style.height = "44px"; onChanged(); }
     else { const body = await response.json().catch(() => ({})) as { error?: string }; setError(body.error || "Não foi possível enviar a mensagem."); }
     setSending(false);
   }
 
   async function takeOver() {
-    await fetch(`/api/conversations/${conversation!.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "HUMANO" }) });
+    await fetch(`/api/conversations/${conversation!.id}${ownerId ? `?ownerId=${encodeURIComponent(ownerId)}` : ""}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "HUMANO" }) });
     onChanged();
   }
 
   async function toggleUrgent() {
-    const response = await fetch(`/api/conversations/${conversation!.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isUrgent: !conversation!.isUrgent }) });
+    const response = await fetch(`/api/conversations/${conversation!.id}${ownerId ? `?ownerId=${encodeURIComponent(ownerId)}` : ""}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isUrgent: !conversation!.isUrgent }) });
     if (response.ok) onChanged();
     else setError("Não foi possível atualizar a prioridade da conversa.");
   }
@@ -92,7 +92,7 @@ export function ChatWindow({ conversation, onChanged, onBack, className }: { con
       </div>)}<div ref={bottomRef}/></div>
     </div>
     <form ref={formRef} onSubmit={submit} className="shrink-0 border-t border-slate-200 bg-white px-3 py-2.5 dark:border-slate-800 dark:bg-slate-900 sm:px-4">
-      <div className="mx-auto max-w-3xl"><AiSuggestion conversationId={conversation.id} onUse={(value) => { setText(value); requestAnimationFrame(() => textareaRef.current?.focus()); }}/>{error && <p className="mb-2 text-xs font-medium text-red-600 dark:text-red-300">{error}</p>}
+      <div className="mx-auto max-w-3xl"><AiSuggestion conversationId={conversation.id} ownerId={ownerId} onUse={(value) => { setText(value); requestAnimationFrame(() => textareaRef.current?.focus()); }}/>{error && <p className="mb-2 text-xs font-medium text-red-600 dark:text-red-300">{error}</p>}
         <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 shadow-sm transition focus-within:border-brand-500 focus-within:bg-white dark:border-slate-700 dark:bg-slate-950 dark:focus-within:bg-slate-950">
           <div className="flex shrink-0 items-center gap-0.5 self-end pb-0.5">{formatActions.map(({ marker, label, icon: Icon }) => <button key={label} type="button" onClick={() => format(marker)} title={label} aria-label={label} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"><Icon size={15}/></button>)}</div>
           <textarea ref={textareaRef} rows={1} value={text} onChange={(event) => { setText(event.target.value); event.currentTarget.style.height = "44px"; event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 128)}px`; }} onKeyDown={onKeyDown} className="scrollbar min-h-11 max-h-32 flex-1 resize-none border-0 bg-transparent px-2 py-3 text-sm leading-5 outline-none placeholder:text-slate-400 focus:ring-0 dark:bg-transparent" placeholder="Mensagem" aria-label="Mensagem"/>

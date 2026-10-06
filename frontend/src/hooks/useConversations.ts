@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import { Conversation } from "@/types";
-export function useConversations() {
+export function useConversations(ownerId?: string) {
   const [activeId, setActiveId] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
   const attemptedInitialSync = useRef(false);
-  const {data=[],isLoading,mutate}=useSWR<Conversation[]>("/api/conversations",async(url:string)=>{const response=await fetch(url);if(!response.ok)throw new Error("Falha ao carregar conversas.");return response.json();},{refreshInterval:10_000});
+  const endpoint = ownerId ? `/api/conversations?ownerId=${encodeURIComponent(ownerId)}` : "/api/conversations";
+  const {data=[],isLoading,mutate}=useSWR<Conversation[]>(endpoint,async(url:string)=>{const response=await fetch(url);if(!response.ok)throw new Error("Falha ao carregar conversas.");return response.json();},{refreshInterval:10_000});
   const syncWhatsApp = useCallback(async () => {
     setSyncing(true);
     setSyncStatus("");
@@ -26,10 +27,10 @@ export function useConversations() {
   }, [mutate]);
   useEffect(()=>{if(!activeId&&data[0])setActiveId(data[0].id)},[activeId,data]);
   useEffect(() => {
-    if (!isLoading && !data.length && !attemptedInitialSync.current) {
+    if (ownerId && !isLoading && !data.length && !attemptedInitialSync.current) {
       attemptedInitialSync.current = true;
       void syncWhatsApp();
     }
-  }, [data.length, isLoading, syncWhatsApp]);
+  }, [data.length, isLoading, ownerId, syncWhatsApp]);
   return { data, active: data.find((item) => item.id === activeId) ?? data[0], setActiveId, loading:isLoading, mutate, syncing, syncStatus, syncWhatsApp };
 }
