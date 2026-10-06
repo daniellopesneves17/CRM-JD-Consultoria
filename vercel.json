@@ -15,5 +15,13 @@
       "installCommand": "npm install",
       "outputDirectory": ".next"
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    }
+  ]
 }
