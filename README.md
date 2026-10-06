@@ -64,15 +64,15 @@ As chamadas usam a Responses API para texto e Audio Transcriptions para mídia. 
 
 ## Uazapi
 
-Preencha `UAZAPI_BASE_URL`, `UAZAPI_TOKEN` e `UAZAPI_WEBHOOK_SECRET`. No painel da instância, configure:
+Preencha `UAZAPI_BASE_URL`, `UAZAPI_TOKEN` e `UAZAPI_OWNER_EMAIL`. O token deve ser o token da instância, nunca o token administrativo do servidor. `UAZAPI_OWNER_EMAIL` vincula os leads recebidos ao corretor correspondente. No painel da instância, configure:
 
 ```text
 URL: https://crm-jd-consultoria.vercel.app/api/webhook/uazapi
-Header: x-webhook-secret: VALOR_DE_UAZAPI_WEBHOOK_SECRET
 Eventos: messages, messages_update
+Excluir mensagens: wasSentByApi
 ```
 
-O webhook ignora mensagens enviadas pela própria instância e grupos, normaliza o DDI 55, evita duplicidade pelo ID externo e responde imediatamente antes do processamento de IA.
+O webhook valida o token da instância enviado pela própria Uazapi no payload. Como alternativa para emissores manuais, também aceita o header `x-webhook-secret` quando `UAZAPI_WEBHOOK_SECRET` estiver configurado. Ele ignora mensagens enviadas pela própria instância e grupos, normaliza o DDI 55, evita duplicidade pelo ID externo e responde imediatamente antes do processamento de IA.
 
 ## Vercel
 

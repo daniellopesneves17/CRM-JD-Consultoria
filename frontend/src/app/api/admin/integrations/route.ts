@@ -37,9 +37,21 @@ export async function GET() {
       }).then((data) => ({ ok: true as const, data })).catch((error: unknown) => ({ ok: false as const, error: error instanceof Error ? error.message : "Erro" }))
     ]);
     const uazapiData = uazapiResult.ok ? uazapiResult.data : {};
-    const state = String(uazapiData.state ?? uazapiData.status ?? uazapiData.instance?.toString() ?? "").toLowerCase();
-    const connected = uazapiResult.ok && !["disconnected", "close", "closed", "error"].some((value) => state.includes(value));
-    const qr = typeof uazapiData.qrCode === "string" ? uazapiData.qrCode : typeof uazapiData.qrcode === "string" ? uazapiData.qrcode : null;
+    const instance = typeof uazapiData.instance === "object" && uazapiData.instance
+      ? uazapiData.instance as Record<string, unknown>
+      : {};
+    const status = typeof uazapiData.status === "object" && uazapiData.status
+      ? uazapiData.status as Record<string, unknown>
+      : {};
+    const state = String(instance.status ?? uazapiData.state ?? (typeof uazapiData.status === "string" ? uazapiData.status : "")).toLowerCase();
+    const connected = uazapiResult.ok && (status.connected === true || state === "connected");
+    const qr = typeof instance.qrcode === "string"
+      ? instance.qrcode
+      : typeof uazapiData.qrCode === "string"
+        ? uazapiData.qrCode
+        : typeof uazapiData.qrcode === "string"
+          ? uazapiData.qrcode
+          : null;
     return NextResponse.json({
       uazapi: { status: connected ? "connected" : uazapiResult.ok ? "disconnected" : "error", instanceName: process.env.UAZAPI_INSTANCE_NAME ?? process.env.UAZAPI_INSTANCE ?? "JD Consultoria", lastMessage: lastMessage?.sentAt ?? null, qrCodeUrl: qr, detail: uazapiResult.ok ? state || "respondendo" : uazapiResult.error },
       openai: { status: openaiResult.ok ? "connected" : "error", modelsAvailable: openaiResult.ok ? (openaiResult.data.data ?? []).map((item) => item.id).filter((id) => /^(gpt|o\d)/.test(id)).slice(0, 12) : [], estimatedCostThisMonth: Number(localCost._sum.estimatedCostUsd ?? 0), detail: openaiResult.ok ? null : openaiResult.error },

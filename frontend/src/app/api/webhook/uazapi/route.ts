@@ -9,12 +9,26 @@ import { analyzeSentiment, generatePreAttendance, generateWhatsAppReply } from "
 import { normalizePhone, sendText } from "@/services/uazapi";
 import { transcribeAudio } from "@/services/whisper";
 
-const payloadSchema = z.object({ event: z.string(), message: z.record(z.unknown()).optional(), data: z.record(z.unknown()).optional() }).passthrough();
+const payloadSchema = z.object({
+  event: z.string().optional(),
+  EventType: z.string().optional(),
+  token: z.string().optional(),
+  message: z.record(z.unknown()).optional(),
+  data: z.record(z.unknown()).optional(),
+}).passthrough().refine((payload) => Boolean(payload.event || payload.EventType), { message: "Evento ausente." });
 const asString = (value: unknown) => typeof value === "string" ? value : undefined;
 
 function messageType(raw?: string): MessageType {
   const value = raw?.toLowerCase() ?? "";
   if (value.includes("audio")) return "AUDIO"; if (value.includes("image")) return "IMAGE"; if (value.includes("document")) return "DOCUMENT"; return "TEXT";
+}
+
+async function configuredOwner() {
+  const email = process.env.UAZAPI_OWNER_EMAIL?.trim().toLowerCase();
+  if (!email) return null;
+  const owner = await prisma.user.findUnique({ where: { email }, select: { id: true, active: true, crmEnabled: true } });
+  if (!owner?.active || !owner.crmEnabled) throw new Error(`Responsável da Uazapi indisponível: ${email}`);
+  return owner;
 }
 
 async function processReceived(message: Record<string, unknown>) {
@@ -25,11 +39,17 @@ async function processReceived(message: Record<string, unknown>) {
   const contentObject = typeof message.content === "object" && message.content ? message.content as Record<string, unknown> : {};
   const content = asString(message.text) ?? asString(contentObject.text) ?? asString(message.body) ?? "";
   const mediaUrl = asString(message.mediaUrl) ?? asString(message.file) ?? asString(contentObject.url);
-  const type = messageType(asString(message.type));
+  const type = messageType(asString(message.messageType) ?? asString(message.type));
   const externalId = asString(message.messageid) ?? asString(message.id);
   const displayName = asString(message.pushName) ?? asString(message.senderName) ?? `WhatsApp ${phone.slice(-4)}`;
 
-  const lead = await prisma.lead.upsert({ where: { phone }, update: { lastActivityAt: new Date() }, create: { name: displayName, phone, stage: "NOVO", source: "WHATSAPP", lastActivityAt: new Date() } });
+  const owner = await configuredOwner();
+  const ownerData = owner ? { userId: owner.id } : {};
+  const lead = await prisma.lead.upsert({
+    where: { phone },
+    update: { lastActivityAt: new Date(), ...ownerData },
+    create: { name: displayName, phone, stage: "NOVO", source: "WHATSAPP", lastActivityAt: new Date(), ...ownerData },
+  });
   let conversation = await prisma.conversation.findFirst({ where: { leadId: lead.id, status: { not: "ENCERRADO" } }, orderBy: { updatedAt: "desc" } });
   if (!conversation) conversation = await prisma.conversation.create({ data: { leadId: lead.id, uazapiChatId: chatId } });
   const previousCount = await prisma.message.count({ where: { conversationId: conversation.id } });
@@ -75,11 +95,13 @@ async function processUpdate(message: Record<string, unknown>) {
 }
 
 export async function POST(request: Request) {
-  if (!process.env.UAZAPI_WEBHOOK_SECRET || request.headers.get("x-webhook-secret") !== process.env.UAZAPI_WEBHOOK_SECRET) return new NextResponse("Unauthorized", { status: 401 });
+  const parsed = payloadSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ error: "Evento inválido." }, { status: 400 });
+  const headerAuthorized = Boolean(process.env.UAZAPI_WEBHOOK_SECRET) && request.headers.get("x-webhook-secret") === process.env.UAZAPI_WEBHOOK_SECRET;
+  const instanceAuthorized = Boolean(process.env.UAZAPI_TOKEN) && parsed.data.token === process.env.UAZAPI_TOKEN;
+  if (!headerAuthorized && !instanceAuthorized) return new NextResponse("Unauthorized", { status: 401 });
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
   if (!(await allowRequest(`uazapi:${ip}`, 120))) return new NextResponse("Too Many Requests", { status: 429 });
-  const parsed = payloadSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ error: "Evento inválido." }, { status: 400 });
-  const message = parsed.data.message ?? parsed.data.data ?? {}; const event = parsed.data.event.toLowerCase();
+  const message = parsed.data.message ?? parsed.data.data ?? {}; const event = (parsed.data.event ?? parsed.data.EventType ?? "").toLowerCase();
   after(async () => { try { if (["messages", "message.received"].includes(event)) await processReceived(message); else if (["messages_update", "message.delivered", "message.read"].includes(event)) await processUpdate(message); } catch (error) { const text=error instanceof Error?error.message:"Falha desconhecida";await prisma.errorLog.create({data:{source:"webhook",message:text,stack:error instanceof Error?error.stack:undefined,context:{event}}}).catch(()=>undefined);console.error("Falha no processamento do webhook", error instanceof Error ? { name: error.name, message: error.message } : { type: typeof error }); } });
   return NextResponse.json({ ok: true });
 }

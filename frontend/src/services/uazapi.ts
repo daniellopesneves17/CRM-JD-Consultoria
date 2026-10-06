@@ -26,7 +26,7 @@ export async function humanDelay() {
 }
 
 export async function setTyping(phone: string) {
-  await request("/send/presence", { number: normalizePhone(phone), presence: "composing", delay: 3000 });
+  await request("/message/presence", { number: normalizePhone(phone), presence: "composing", delay: 3000 });
 }
 
 export async function sendText(phone: string, text: string) {
