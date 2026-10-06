@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError, requireUser } from "@/lib/route";
-import { downloadUazapiMessage } from "@/services/uazapi";
+import { downloadUazapiMessage, type UazapiConfig } from "@/services/uazapi";
 
 export async function GET(request: Request) {
   const access = await requireUser();
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
 
     const lead = await prisma.lead.findFirst({
       where: { id: leadId, ...(access.session.user.role === "ADMIN" ? {} : { userId: access.session.user.id }) },
-      select: { id: true },
+      select: { id: true, assignedTo: { select: { uazapiBaseUrl: true, uazapiToken: true } } },
     });
     if (!lead) return NextResponse.json({ error: "Mídia não encontrada." }, { status: 404 });
     const reference = await prisma.activity.findFirst({
@@ -23,7 +23,8 @@ export async function GET(request: Request) {
     });
     if (!reference) return NextResponse.json({ error: "Mídia não encontrada." }, { status: 404 });
 
-    const result = await downloadUazapiMessage(messageId);
+    const config: UazapiConfig | undefined = lead.assignedTo?.uazapiToken && lead.assignedTo.uazapiBaseUrl ? { baseUrl: lead.assignedTo.uazapiBaseUrl, token: lead.assignedTo.uazapiToken } : undefined;
+    const result = await downloadUazapiMessage(messageId, config);
     const fileUrl = typeof result.fileURL === "string" ? result.fileURL : "";
     if (!/^https:\/\//i.test(fileUrl)) return NextResponse.json({ error: "Arquivo indisponível." }, { status: 404 });
     return NextResponse.redirect(fileUrl);

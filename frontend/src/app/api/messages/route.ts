@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { apiError, requireUser } from "@/lib/route";
-import { sendText } from "@/services/uazapi";
+import { sendText, type UazapiConfig } from "@/services/uazapi";
 
 const schema = z.object({ conversationId: z.string().cuid(), content: z.string().trim().min(1).max(4000), ownerId: z.string().cuid().optional() });
 
@@ -11,9 +11,11 @@ export async function POST(request: Request) {
   const access = await requireUser(); if ("response" in access) return access.response;
   try {
     const data = schema.parse(await request.json());
-    const conversation = await prisma.conversation.findFirst({ where: { id: data.conversationId, lead: { userId: access.session.user.role === "ADMIN" ? data.ownerId || "__admin_scope_required__" : access.session.user.id } }, include: { lead: true } });
+    const conversation = await prisma.conversation.findFirst({ where: { id: data.conversationId, lead: { userId: access.session.user.role === "ADMIN" ? data.ownerId || "__admin_scope_required__" : access.session.user.id } }, include: { lead: { include: { assignedTo: { select: { uazapiBaseUrl: true, uazapiToken: true } } } } } });
     if (!conversation) return NextResponse.json({ error: "Conversa não encontrada." }, { status: 404 });
-    const sent = await sendText(conversation.lead.phone, data.content);
+    const owner = conversation.lead.assignedTo;
+    const config: UazapiConfig | undefined = owner?.uazapiToken && owner.uazapiBaseUrl ? { baseUrl: owner.uazapiBaseUrl, token: owner.uazapiToken } : undefined;
+    const sent = await sendText(conversation.lead.phone, data.content, config);
     const message = await prisma.message.create({ data: { conversationId: data.conversationId, content: data.content, sender: "CORRETOR", userId: access.session.user.id } });
     const externalId = typeof sent.messageid === "string" ? sent.messageid : typeof sent.id === "string" ? sent.id : null;
     if (externalId) await prisma.activity.create({ data: { leadId: conversation.leadId, type: "uazapi_message", detail: JSON.stringify({ externalId, messageId: message.id }) } });

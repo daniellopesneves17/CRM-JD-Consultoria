@@ -14,7 +14,7 @@ export function useConversations(ownerId?: string) {
     setSyncing(true);
     setSyncStatus("");
     try {
-      const response = await fetch("/api/uazapi/sync", { method: "POST" });
+      const response = await fetch(`/api/uazapi/sync${ownerId ? `?ownerId=${encodeURIComponent(ownerId)}` : ""}`, { method: "POST" });
       const body = await response.json().catch(() => ({})) as { imported?: number; chats?: number; error?: string };
       if (!response.ok) throw new Error(body.error || "Falha ao sincronizar o WhatsApp.");
       setSyncStatus(body.imported ? `${body.imported} mensagens importadas` : `${body.chats ?? 0} conversas atualizadas`);

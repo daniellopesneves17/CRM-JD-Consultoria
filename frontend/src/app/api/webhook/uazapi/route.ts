@@ -7,7 +7,7 @@ import { allowRequest } from "@/lib/rate-limit";
 import { shouldUseAutomaticPreAttendance, uazapiChatAvatar, uazapiMediaUrl, uazapiMessageContent, uazapiMessageType } from "@/lib/uazapi-sync";
 import { analyzeSentiment, generatePreAttendance } from "@/services/ai";
 import { isAiConfigured } from "@/services/ai/client";
-import { downloadUazapiMessage, normalizePhone, sendText } from "@/services/uazapi";
+import { downloadUazapiMessage, normalizePhone, sendText, type UazapiConfig } from "@/services/uazapi";
 import { transcribeAudio } from "@/services/whisper";
 
 const payloadSchema = z.object({
@@ -19,15 +19,19 @@ const payloadSchema = z.object({
 }).passthrough().refine((payload) => Boolean(payload.event || payload.EventType), { message: "Evento ausente." });
 const asString = (value: unknown) => typeof value === "string" ? value : undefined;
 
-async function configuredOwner() {
+async function configuredOwner(token?: string) {
+  if (token) {
+    const linked = await prisma.user.findFirst({ where: { uazapiToken: token }, select: { id: true, active: true, crmEnabled: true, uazapiBaseUrl: true, uazapiToken: true } });
+    if (linked) return linked;
+  }
   const email = process.env.UAZAPI_OWNER_EMAIL?.trim().toLowerCase();
   if (!email) return null;
-  const owner = await prisma.user.findUnique({ where: { email }, select: { id: true, active: true, crmEnabled: true } });
+  const owner = await prisma.user.findUnique({ where: { email }, select: { id: true, active: true, crmEnabled: true, uazapiBaseUrl: true, uazapiToken: true } });
   if (!owner?.active || !owner.crmEnabled) throw new Error(`Responsável da Uazapi indisponível: ${email}`);
   return owner;
 }
 
-async function processReceived(message: Record<string, unknown>) {
+async function processReceived(message: Record<string, unknown>, instanceToken?: string) {
   if (message.isGroup === true) return;
   if (String(message.messageType ?? message.type ?? "").toLowerCase() === "call") return;
   const fromMe = message.fromMe === true;
@@ -40,7 +44,9 @@ async function processReceived(message: Record<string, unknown>) {
   const displayName = fromMe ? `WhatsApp ${phone.slice(-4)}` : asString(message.pushName) ?? asString(message.senderName) ?? `WhatsApp ${phone.slice(-4)}`;
   const avatarUrl = uazapiChatAvatar(message);
 
-  const owner = await configuredOwner();
+  const owner = await configuredOwner(instanceToken);
+  if (!owner) throw new Error("Responsável da Uazapi não configurado.");
+  const config: UazapiConfig | undefined = owner.uazapiToken && owner.uazapiBaseUrl ? { baseUrl: owner.uazapiBaseUrl, token: owner.uazapiToken } : undefined;
   const ownerData = owner ? { userId: owner.id } : {};
   const lead = await prisma.lead.upsert({
     where: { phone },
@@ -58,7 +64,7 @@ async function processReceived(message: Record<string, unknown>) {
   }
   let transcription: string | null = null;
   if (type === "AUDIO" && externalId) {
-    const downloaded = await downloadUazapiMessage(externalId).catch(() => null);
+    const downloaded = await downloadUazapiMessage(externalId, config).catch(() => null);
     const audioUrl = downloaded && typeof downloaded.fileURL === "string" ? downloaded.fileURL : null;
     if (audioUrl) {
       try {
@@ -96,7 +102,7 @@ async function processReceived(message: Record<string, unknown>) {
     try {
       if (analyzedText && isAiConfigured() && process.env.UAZAPI_TOKEN) {
         const reply = await generatePreAttendance({ leadPhone: phone, firstMessage: analyzedText });
-        const sent = await sendText(phone, reply);
+        const sent = await sendText(phone, reply, config);
         const replyMessage = await prisma.message.create({ data: { conversationId: conversation.id, sender: "BOT", content: reply } });
         const replyExternalId = typeof sent.messageid === "string" ? sent.messageid : typeof sent.id === "string" ? sent.id : null;
         if (replyExternalId) await prisma.activity.create({ data: { leadId: lead.id, type: "uazapi_message", detail: JSON.stringify({ externalId: replyExternalId, messageId: replyMessage.id }) } });
@@ -124,6 +130,6 @@ export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
   if (!(await allowRequest(`uazapi:${ip}`, 120))) return new NextResponse("Too Many Requests", { status: 429 });
   const message = parsed.data.message ?? parsed.data.data ?? {}; const event = (parsed.data.event ?? parsed.data.EventType ?? "").toLowerCase();
-  after(async () => { try { if (["messages", "message.received"].includes(event)) await processReceived(message); else if (["messages_update", "message.delivered", "message.read"].includes(event)) await processUpdate(message); } catch (error) { const text=error instanceof Error?error.message:"Falha desconhecida";await prisma.errorLog.create({data:{source:"webhook",message:text,stack:error instanceof Error?error.stack:undefined,context:{event}}}).catch(()=>undefined);console.error("Falha no processamento do webhook", error instanceof Error ? { name: error.name, message: error.message } : { type: typeof error }); } });
+  after(async () => { try { if (["messages", "message.received"].includes(event)) await processReceived(message, parsed.data.token); else if (["messages_update", "message.delivered", "message.read"].includes(event)) await processUpdate(message); } catch (error) { const text=error instanceof Error?error.message:"Falha desconhecida";await prisma.errorLog.create({data:{source:"webhook",message:text,stack:error instanceof Error?error.stack:undefined,context:{event}}}).catch(()=>undefined);console.error("Falha no processamento do webhook", error instanceof Error ? { name: error.name, message: error.message } : { type: typeof error }); } });
   return NextResponse.json({ ok: true });
 }

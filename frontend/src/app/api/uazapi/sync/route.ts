@@ -13,7 +13,7 @@ import {
   uazapiMessageType,
   uazapiPhone,
 } from "@/lib/uazapi-sync";
-import { findUazapiChats, findUazapiMessages, type UazapiRecord } from "@/services/uazapi";
+import { findUazapiChats, findUazapiMessages, type UazapiConfig, type UazapiRecord } from "@/services/uazapi";
 
 export const maxDuration = 60;
 
@@ -26,7 +26,7 @@ function activityExternalId(detail: string) {
   }
 }
 
-async function syncChat(ownerId: string, chatId: string, chat: UazapiRecord | undefined, messages: UazapiRecord[]) {
+async function syncChat(ownerId: string, chatId: string, chat: UazapiRecord | undefined, messages: UazapiRecord[], config?: UazapiConfig) {
   const phone = uazapiPhone(chat, chatId);
   if (phone.length < 10) return { chats: 0, imported: 0, skipped: messages.length };
 
@@ -121,19 +121,22 @@ async function syncChat(ownerId: string, chatId: string, chat: UazapiRecord | un
   return { chats: 1, imported: fresh.length, skipped: sorted.length - fresh.length };
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   const access = await requireUser();
   if ("response" in access) return access.response;
   try {
-    const ownerEmail = process.env.UAZAPI_OWNER_EMAIL?.trim().toLowerCase();
-    if (!ownerEmail) return NextResponse.json({ error: "Responsável da Uazapi não configurado." }, { status: 503 });
-    const owner = await prisma.user.findUnique({ where: { email: ownerEmail }, select: { id: true, active: true, crmEnabled: true } });
+    const ownerId = new URL(request.url).searchParams.get("ownerId")?.trim() || (access.session.user.role === "ADMIN" ? null : access.session.user.id);
+    if (!ownerId) return NextResponse.json({ error: "Selecione um CRM para sincronizar." }, { status: 400 });
+    const owner = await prisma.user.findUnique({ where: { id: ownerId }, select: { id: true, email: true, active: true, crmEnabled: true, uazapiBaseUrl: true, uazapiToken: true } });
     if (!owner?.active || !owner.crmEnabled) return NextResponse.json({ error: "Responsável da Uazapi indisponível." }, { status: 503 });
     if (access.session.user.role !== "ADMIN" && access.session.user.id !== owner.id) {
       return NextResponse.json({ error: "Nenhuma conexão de WhatsApp está configurada para este perfil." }, { status: 403 });
     }
+    const ownerEmail = process.env.UAZAPI_OWNER_EMAIL?.trim().toLowerCase();
+    if (!owner.uazapiToken && owner.email.toLowerCase() !== ownerEmail) return NextResponse.json({ error: "Nenhuma conexão de WhatsApp está configurada para este perfil." }, { status: 403 });
+    const config: UazapiConfig | undefined = owner.uazapiToken && owner.uazapiBaseUrl ? { baseUrl: owner.uazapiBaseUrl, token: owner.uazapiToken } : undefined;
 
-    const chats = await findUazapiChats();
+    const chats = await findUazapiChats(config);
     const chatsById = new Map<string, UazapiRecord>();
     for (const chat of chats) {
       for (const id of [chat.wa_chatid, chat.wa_chatlid]) if (typeof id === "string" && id) chatsById.set(id, chat);
@@ -142,7 +145,7 @@ export async function POST() {
     const messages: UazapiRecord[] = [];
     let offset = 0;
     for (let page = 0; page < 10; page += 1) {
-      const result = await findUazapiMessages(offset, 1000);
+      const result = await findUazapiMessages(offset, 1000, config);
       messages.push(...result.messages);
       if (!result.hasMore || !result.messages.length) break;
       offset = result.nextOffset;
@@ -160,7 +163,7 @@ export async function POST() {
     const totals = { chats: 0, imported: 0, skipped: 0 };
     const entries = [...groups.entries()];
     for (let index = 0; index < entries.length; index += 4) {
-      const batch = await Promise.all(entries.slice(index, index + 4).map(([chatId, items]) => syncChat(owner.id, chatId, chatsById.get(chatId), items)));
+      const batch = await Promise.all(entries.slice(index, index + 4).map(([chatId, items]) => syncChat(owner.id, chatId, chatsById.get(chatId), items, config)));
       for (const result of batch) {
         totals.chats += result.chats;
         totals.imported += result.imported;
