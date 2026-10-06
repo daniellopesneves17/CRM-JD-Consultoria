@@ -63,6 +63,8 @@ async function processReceived(message: Record<string, unknown>, instanceToken?:
     const duplicate = await prisma.activity.findFirst({ where: { leadId: lead.id, type: "uazapi_message", detail: { contains: externalId } } });
     if (duplicate) return;
   }
+  const savedMessage = await prisma.message.create({ data: { conversationId: conversation.id, sender: fromMe ? "CORRETOR" : "LEAD", userId: fromMe ? owner?.id : null, content: content || `[${type.toLowerCase()} recebido]`, type, mediaUrl, transcription: null } });
+  await prisma.conversation.update({ where: { id: conversation.id }, data: { updatedAt: new Date() } });
   let transcription: string | null = null;
   if (type === "AUDIO" && externalId) {
     const downloaded = await downloadUazapiMessage(externalId, config).catch(() => null);
@@ -70,6 +72,7 @@ async function processReceived(message: Record<string, unknown>, instanceToken?:
     if (audioUrl) {
       try {
         transcription = await transcribeAudio(audioUrl);
+        if (transcription) await prisma.message.update({ where: { id: savedMessage.id }, data: { transcription } });
       } catch (error) {
         await prisma.errorLog.create({
           data: {
@@ -81,7 +84,6 @@ async function processReceived(message: Record<string, unknown>, instanceToken?:
       }
     }
   }
-  const savedMessage = await prisma.message.create({ data: { conversationId: conversation.id, sender: fromMe ? "CORRETOR" : "LEAD", userId: fromMe ? owner?.id : null, content: content || transcription || `[${type.toLowerCase()} recebido]`, type, mediaUrl, transcription } });
   const notification = {
     type: "NEW_MESSAGE",
     title: "Nova mensagem no WhatsApp",
@@ -126,7 +128,10 @@ async function processUpdate(message: Record<string, unknown>) {
 export async function POST(request: Request) {
   const parsed = payloadSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ error: "Evento inválido." }, { status: 400 });
   const headerAuthorized = Boolean(process.env.UAZAPI_WEBHOOK_SECRET) && request.headers.get("x-webhook-secret") === process.env.UAZAPI_WEBHOOK_SECRET;
-  const instanceAuthorized = Boolean(process.env.UAZAPI_TOKEN) && parsed.data.token === process.env.UAZAPI_TOKEN;
+  const instanceAuthorized = Boolean(parsed.data.token) && (
+    parsed.data.token === process.env.UAZAPI_TOKEN
+    || Boolean(await prisma.user.findFirst({ where: { uazapiToken: parsed.data.token }, select: { id: true } }))
+  );
   if (!headerAuthorized && !instanceAuthorized) return new NextResponse("Unauthorized", { status: 401 });
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
   if (!(await allowRequest(`uazapi:${ip}`, 120))) return new NextResponse("Too Many Requests", { status: 429 });

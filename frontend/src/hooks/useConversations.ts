@@ -8,8 +8,17 @@ export function useConversations(ownerId?: string) {
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
   const attemptedInitialSync = useRef(false);
+  const lastVersion = useRef<string | null>(null);
   const endpoint = ownerId ? `/api/conversations?ownerId=${encodeURIComponent(ownerId)}` : "/api/conversations";
-  const {data=[],isLoading,mutate}=useSWR<Conversation[]>(endpoint,async(url:string)=>{const response=await fetch(url);if(!response.ok)throw new Error("Falha ao carregar conversas.");return response.json();},{refreshInterval:10_000});
+  const versionEndpoint = ownerId ? `/api/conversations/version?ownerId=${encodeURIComponent(ownerId)}` : "/api/conversations/version";
+  const fetcher = async <T,>(url: string) => { const response = await fetch(url, { cache: "no-store" }); if (!response.ok) throw new Error("Falha ao carregar conversas."); return response.json() as Promise<T>; };
+  const {data=[],isLoading,mutate}=useSWR<Conversation[]>(endpoint,fetcher,{refreshInterval:0,revalidateOnFocus:true,revalidateOnReconnect:true});
+  const { data: versionData } = useSWR<{ version: string }>(versionEndpoint, fetcher, {
+    refreshInterval: () => typeof document !== "undefined" && document.visibilityState === "visible" ? 1_000 : 0,
+    refreshWhenHidden: false,
+    revalidateOnFocus: true,
+    dedupingInterval: 500,
+  });
   const syncWhatsApp = useCallback(async () => {
     setSyncing(true);
     setSyncStatus("");
@@ -24,7 +33,13 @@ export function useConversations(ownerId?: string) {
     } finally {
       setSyncing(false);
     }
-  }, [mutate]);
+  }, [mutate, ownerId]);
+  useEffect(() => {
+    const version = versionData?.version;
+    if (!version) return;
+    if (lastVersion.current && lastVersion.current !== version) void mutate();
+    lastVersion.current = version;
+  }, [mutate, versionData?.version]);
   useEffect(()=>{if(!activeId&&data[0])setActiveId(data[0].id)},[activeId,data]);
   useEffect(() => {
     if (ownerId && !isLoading && !attemptedInitialSync.current) {
