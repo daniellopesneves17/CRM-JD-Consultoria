@@ -51,6 +51,7 @@ async function processReceived(message: Record<string, unknown>) {
   let conversation = await prisma.conversation.findFirst({ where: { leadId: lead.id, status: { not: "ENCERRADO" } }, orderBy: { updatedAt: "desc" } });
   if (!conversation) conversation = await prisma.conversation.create({ data: { leadId: lead.id, uazapiChatId: chatId } });
   const previousCount = await prisma.message.count({ where: { conversationId: conversation.id } });
+  const preAttendanceRule = await prisma.automationRule.findUnique({ where: { id: "pre-attendance" }, select: { active: true } });
   if (externalId) {
     const duplicate = await prisma.activity.findFirst({ where: { leadId: lead.id, type: "uazapi_message", detail: { contains: externalId } } });
     if (duplicate) return;
@@ -91,7 +92,7 @@ async function processReceived(message: Record<string, unknown>) {
     const sentiment = await analyzeSentiment(analyzedText).catch(() => null);
     if (sentiment) await prisma.conversation.update({ where: { id: conversation.id }, data: { sentiment: sentiment.sentiment } });
   }
-  if (shouldUseAutomaticPreAttendance(fromMe, previousCount)) {
+  if (shouldUseAutomaticPreAttendance(fromMe, previousCount, preAttendanceRule?.active === true)) {
     try {
       if (analyzedText && isAiConfigured() && process.env.UAZAPI_TOKEN) {
         const reply = await generatePreAttendance({ leadPhone: phone, firstMessage: analyzedText });

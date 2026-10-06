@@ -94,6 +94,6 @@ export function uazapiFingerprint(sender: MessageSender, content: string, sentAt
   return `${sender}|${content}|${Math.floor(sentAt.getTime() / 60_000)}`;
 }
 
-export function shouldUseAutomaticPreAttendance(fromMe: boolean, previousCount: number) {
-  return !fromMe && previousCount === 0;
+export function shouldUseAutomaticPreAttendance(fromMe: boolean, previousCount: number, enabled = true) {
+  return enabled && !fromMe && previousCount === 0;
 }

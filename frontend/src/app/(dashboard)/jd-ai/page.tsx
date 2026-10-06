@@ -6,6 +6,7 @@ import useSWR from "swr";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import type { JdAiSource } from "@/lib/jd-ai";
+import { parseJdAiContextCommand } from "@/lib/jd-ai-context";
 
 type ConversationSummary = {
   id: string;
@@ -16,7 +17,7 @@ type ConversationSummary = {
 };
 type BriefingSummary = { researchDate: string; title: string; createdAt: string } | null;
 type Message = { id: string; role: "USER" | "ASSISTANT"; content: string; sources: unknown; createdAt: string };
-type Conversation = { id: string; title: string; messages: Message[] };
+type Conversation = { id: string; title: string; context?: string | null; messages: Message[] };
 
 const fetchJson = async <T,>(url: string): Promise<T> => {
   const response = await fetch(url);
@@ -49,6 +50,7 @@ export default function JdAiPage() {
   const { data, mutate: mutateList, isLoading: loadingList } = useSWR<{ items: ConversationSummary[]; briefing: BriefingSummary }>("/api/jd-ai/conversations", fetchJson);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [context, setContext] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingConversation, setLoadingConversation] = useState(false);
@@ -70,7 +72,7 @@ export default function JdAiPage() {
     let current = true;
     setLoadingConversation(true);
     fetchJson<Conversation>(`/api/jd-ai/conversations/${activeId}`)
-      .then((conversation) => { if (current) setMessages(conversation.messages); })
+      .then((conversation) => { if (current) { setMessages(conversation.messages); setContext(conversation.context ?? null); } })
       .catch(() => { if (current) setError("Não foi possível abrir esta conversa."); })
       .finally(() => { if (current) setLoadingConversation(false); });
     return () => { current = false; };
@@ -87,6 +89,7 @@ export default function JdAiPage() {
   const startNew = () => {
     setActiveId(null);
     setMessages([]);
+    setContext(null);
     setInput("");
     setError("");
     setHistoryOpen(false);
@@ -128,6 +131,10 @@ export default function JdAiPage() {
       if (!response.ok) throw new Error(result.error || "A JD AI não conseguiu responder.");
       setMessages((current) => [...current.filter((item) => item.id !== temporary.id), result.userMessage, result.assistantMessage]);
       if (!activeId) setActiveId(result.conversation.id);
+      if (parseJdAiContextCommand(message)) {
+        const conversation = await fetchJson<Conversation>(`/api/jd-ai/conversations/${result.conversation.id}`);
+        setContext(conversation.context ?? null);
+      }
       await mutateList();
     } catch (caught) {
       setMessages((current) => current.filter((item) => item.id !== temporary.id));
@@ -168,6 +175,7 @@ export default function JdAiPage() {
           <button onClick={() => setHistoryOpen(true)} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900 xl:hidden" aria-label="Abrir histórico"><Menu size={19}/></button>
           <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white shadow-md shadow-blue-900/20"><Sparkles size={18}/></div>
           <div className="min-w-0"><h1 className="truncate text-sm font-semibold text-slate-900 dark:text-white">{activeTitle}</h1><p className="flex items-center gap-1.5 text-xs text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500"/> JD AI · pesquisa com fontes</p></div>
+          {context && <span className="ml-auto hidden max-w-[16rem] truncate rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-[11px] font-medium text-brand-700 dark:border-brand-900/60 dark:bg-brand-950/30 dark:text-brand-300 sm:block" title={context}>Contexto ativo</span>}
         </header>
 
         <div className="scrollbar min-h-0 flex-1 overscroll-contain overflow-y-auto px-4 py-5 sm:px-7 sm:py-6">
@@ -197,7 +205,7 @@ export default function JdAiPage() {
               <textarea ref={inputRef} value={input} onChange={(event) => setInput(event.target.value)} onInput={(event) => resizeMessageInput(event.currentTarget)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={1} maxLength={4000} placeholder="Pergunte à JD AI..." className="scrollbar max-h-36 min-h-11 flex-1 resize-none overflow-y-auto border-0 !bg-transparent px-3 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:ring-0 dark:text-slate-100" aria-label="Mensagem para a JD AI"/>
               <button type="submit" disabled={sending || input.trim().length < 2} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand-600 text-white transition hover:bg-brand-500 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-800" aria-label="Enviar mensagem">{sending ? <LoaderCircle className="animate-spin" size={18}/> : <Send size={18}/>}</button>
             </form>
-            <p className="jd-ai-disclaimer mt-2 hidden text-center text-[11px] text-slate-400 sm:block">A JD AI pode cometer erros. Confirme decisões médicas, jurídicas e regulatórias nas fontes oficiais.</p>
+            <p className="jd-ai-disclaimer mt-2 text-center text-[11px] text-slate-400">Use <code>/contexto ...</code> para orientar esta conversa ou <code>/limpar contexto</code> para apagar. A JD AI pode cometer erros; confirme decisões nas fontes oficiais.</p>
           </div>
         </div>
       </section>

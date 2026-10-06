@@ -2,6 +2,7 @@ import { JdAiMessageRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { makeConversationTitle } from "@/lib/jd-ai";
+import { mergeJdAiContext, parseJdAiContextCommand } from "@/lib/jd-ai-context";
 import { allowRequest } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
 import { apiError, requireUser } from "@/lib/route";
@@ -29,6 +30,16 @@ export async function POST(request: Request) {
     if (body.conversationId && !existing) return NextResponse.json({ error: "Conversa não encontrada." }, { status: 404 });
 
     const conversation = existing ?? await prisma.jdAiConversation.create({ data: { userId: access.session.user.id } });
+    const contextCommand = parseJdAiContextCommand(body.message);
+    if (contextCommand) {
+      const context = contextCommand.type === "clear" ? null : mergeJdAiContext(conversation.context, contextCommand.content);
+      const userMessage = await prisma.jdAiMessage.create({ data: { conversationId: conversation.id, role: JdAiMessageRole.USER, content: body.message } });
+      const confirmation = contextCommand.type === "clear" ? "Contexto desta conversa apagado. A partir de agora, vou usar apenas as mensagens e informações novas que você enviar." : "Contexto salvo para esta conversa. Vou considerar essa orientação nas próximas respostas da JD AI.";
+      const assistantMessage = await prisma.jdAiMessage.create({ data: { conversationId: conversation.id, role: JdAiMessageRole.ASSISTANT, content: confirmation } });
+      const title = conversation.title === "Nova conversa" ? "Contexto da JD AI" : conversation.title;
+      await prisma.jdAiConversation.update({ where: { id: conversation.id }, data: { context, title } });
+      return NextResponse.json({ conversation: { id: conversation.id, title }, userMessage, assistantMessage });
+    }
     const [history, briefing] = await Promise.all([
       prisma.jdAiMessage.findMany({
         where: { conversationId: conversation.id },
@@ -44,7 +55,7 @@ export async function POST(request: Request) {
     });
     let answer: Awaited<ReturnType<typeof answerJdAi>>;
     try {
-      answer = await answerJdAi({ history: history.reverse(), question: body.message, briefing: briefing?.content });
+      answer = await answerJdAi({ history: history.reverse(), question: body.message, briefing: briefing?.content, context: conversation.context });
     } catch (error) {
       await prisma.jdAiMessage.delete({ where: { id: userMessage.id } }).catch(() => undefined);
       if (!existing) await prisma.jdAiConversation.delete({ where: { id: conversation.id } }).catch(() => undefined);

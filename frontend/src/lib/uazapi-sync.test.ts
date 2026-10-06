@@ -28,6 +28,7 @@ test("diferencia vídeo de documento", () => {
 
 test("pré-atendimento automático acontece somente na primeira mensagem do lead", () => {
   assert.equal(shouldUseAutomaticPreAttendance(false, 0), true);
+  assert.equal(shouldUseAutomaticPreAttendance(false, 0, false), false);
   assert.equal(shouldUseAutomaticPreAttendance(false, 1), false);
   assert.equal(shouldUseAutomaticPreAttendance(true, 0), false);
 });

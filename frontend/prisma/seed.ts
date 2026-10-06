@@ -58,7 +58,7 @@ async function main() {
   }
 
   const automations = [
-    { id: "pre-attendance", name: "Pré-atendimento IA", description: "Responde automaticamente novos leads no WhatsApp.", trigger: "new_message", delayHours: 0, template: "Atendimento inicial humanizado", model: "gpt-4o", config: { startHour: "08:00", endHour: "20:00" } },
+    { id: "pre-attendance", name: "Pré-atendimento IA", description: "Responde somente ao primeiro contato de novos leads quando habilitado pelo administrador.", trigger: "new_message", delayHours: 0, template: "Atendimento inicial humanizado", model: "gpt-4o", config: { startHour: "08:00", endHour: "20:00" }, active: false },
     { id: "proposal-follow-up", name: "Follow-up após proposta", description: "Retoma contatos que não responderam à proposta.", trigger: "proposal_sent_no_response", delayHours: 24, template: "Follow-up consultivo", model: "gpt-4o", config: { days: [1, 3, 7] } },
     { id: "base-reactivation", name: "Reativação de base", description: "Contata leads frios e inativos.", trigger: "inactive_lead", delayHours: 720, template: "Reativação personalizada", model: "o3 + gpt-4o", config: { inactiveDays: 30, dailyLimit: 15 } },
     { id: "sentiment-analysis", name: "Análise de sentimento", description: "Classifica o tom das mensagens recebidas.", trigger: "incoming_message_sentiment", delayHours: 0, template: "Classificação de sentimento", model: "gpt-4o-mini", config: {} },
