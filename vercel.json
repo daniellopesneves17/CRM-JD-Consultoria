@@ -1,21 +1,22 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "crons": [
+    {
+      "path": "/api/cron/daily",
+      "schedule": "0 12 * * *"
+    }
+  ],
   "services": {
     "frontend": {
       "root": "frontend",
-      "framework": "nextjs"
+      "framework": "nextjs",
+      "buildCommand": "npm run build",
+      "installCommand": "npm install",
+      "outputDirectory": ".next"
+    },
+    "backend": {
+      "root": "backend"
     }
-  },
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": {
-        "type": "service",
-        "service": "frontend"
-      }
-    }
-  ],
-  "crons": [
-    { "path": "/api/cron/daily", "schedule": "0 12 * * *" }
-  ]
+  }
 }
