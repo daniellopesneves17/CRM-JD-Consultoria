@@ -130,7 +130,7 @@ export async function POST() {
     const owner = await prisma.user.findUnique({ where: { email: ownerEmail }, select: { id: true, active: true, crmEnabled: true } });
     if (!owner?.active || !owner.crmEnabled) return NextResponse.json({ error: "Responsável da Uazapi indisponível." }, { status: 503 });
     if (access.session.user.role !== "ADMIN" && access.session.user.id !== owner.id) {
-      return NextResponse.json({ error: "Esta instância não pertence a este perfil." }, { status: 403 });
+      return NextResponse.json({ error: "Nenhuma conexão de WhatsApp está configurada para este perfil." }, { status: 403 });
     }
 
     const chats = await findUazapiChats();
