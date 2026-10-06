@@ -36,13 +36,11 @@ export function getOpenAI() {
   });
 }
 
-export function getOpenAITranscriptionClient() {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) throw new Error("OPENAI_API_KEY não configurada para transcrição.");
-  return new OpenAI({
-    apiKey,
-    baseURL: process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1",
-  });
+export function getTranscriptionModel() {
+  const { provider } = getAiConfiguration();
+  return provider === "openrouter"
+    ? process.env.OPENROUTER_TRANSCRIPTION_MODEL?.trim() || "openai/whisper-large-v3-turbo"
+    : process.env.OPENAI_TRANSCRIPTION_MODEL?.trim() || "whisper-1";
 }
 
 export function parseStructured<T>(text: string, schema: z.ZodType<T>): T {

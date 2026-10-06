@@ -59,7 +59,19 @@ async function processReceived(message: Record<string, unknown>) {
   if (type === "AUDIO" && externalId) {
     const downloaded = await downloadUazapiMessage(externalId).catch(() => null);
     const audioUrl = downloaded && typeof downloaded.fileURL === "string" ? downloaded.fileURL : null;
-    if (audioUrl) transcription = await transcribeAudio(audioUrl).catch(() => null);
+    if (audioUrl) {
+      try {
+        transcription = await transcribeAudio(audioUrl);
+      } catch (error) {
+        await prisma.errorLog.create({
+          data: {
+            source: "audio-transcription",
+            message: error instanceof Error ? error.message : "Falha desconhecida na transcrição.",
+            context: { leadId: lead.id, externalId },
+          },
+        }).catch(() => undefined);
+      }
+    }
   }
   const savedMessage = await prisma.message.create({ data: { conversationId: conversation.id, sender: fromMe ? "CORRETOR" : "LEAD", userId: fromMe ? owner?.id : null, content: content || transcription || `[${type.toLowerCase()} recebido]`, type, mediaUrl, transcription } });
   const notification = {

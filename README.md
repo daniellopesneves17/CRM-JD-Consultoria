@@ -57,7 +57,8 @@ Configure `OPENROUTER_API_KEY` para usar a OpenRouter (prioridade) ou `OPENAI_AP
 | Score e análise | `OPENAI_DEEP_MODEL` | `o3` |
 | Fallback profundo | `OPENAI_DEEP_FALLBACK_MODEL` | `gpt-4o` |
 | Sentimento/intenção | `OPENAI_CHEAP_MODEL` | `gpt-4o-mini` |
-| Transcrição | `OPENAI_TRANSCRIPTION_MODEL` | `whisper-1` |
+| Transcrição pela OpenRouter | `OPENROUTER_TRANSCRIPTION_MODEL` | `openai/whisper-large-v3-turbo` |
+| Transcrição direta pela OpenAI (fallback) | `OPENAI_TRANSCRIPTION_MODEL` | `whisper-1` |
 | JD AI com pesquisa web | `OPENAI_JD_AI_MODEL` | `gpt-4o` |
 
 As chamadas usam a Responses API para texto e Audio Transcriptions para mídia. Sem chave, o restante do CRM continua funcionando, mas recursos de IA retornam erro de configuração.
