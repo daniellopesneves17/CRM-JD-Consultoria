@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createNotification, notifyAdmins } from "@/lib/notifications";
 import { allowRequest } from "@/lib/rate-limit";
-import { shouldUseAutomaticPreAttendance, uazapiChatAvatar, uazapiMediaUrl, uazapiMessageContent, uazapiMessageType } from "@/lib/uazapi-sync";
+import { shouldUseAutomaticPreAttendance, uazapiChatAvatar, uazapiChatName, uazapiMediaUrl, uazapiMessageContent, uazapiMessageType } from "@/lib/uazapi-sync";
 import { analyzeSentiment, generatePreAttendance } from "@/services/ai";
 import { isAiConfigured } from "@/services/ai/client";
 import { downloadUazapiMessage, normalizePhone, sendText, type UazapiConfig } from "@/services/uazapi";
