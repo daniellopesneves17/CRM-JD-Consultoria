@@ -72,7 +72,9 @@ Eventos: messages, messages_update
 Excluir mensagens: wasSentByApi
 ```
 
-O webhook valida o token da instância enviado pela própria Uazapi no payload. Como alternativa para emissores manuais, também aceita o header `x-webhook-secret` quando `UAZAPI_WEBHOOK_SECRET` estiver configurado. Ele ignora mensagens enviadas pela própria instância e grupos, normaliza o DDI 55, evita duplicidade pelo ID externo e responde imediatamente antes do processamento de IA.
+O webhook valida o token da instância enviado pela própria Uazapi no payload. Como alternativa para emissores manuais, também aceita o header `x-webhook-secret` quando `UAZAPI_WEBHOOK_SECRET` estiver configurado. Ele ignora grupos, normaliza o DDI 55, evita duplicidade pelo ID externo e registra tanto mensagens recebidas quanto mensagens enviadas manualmente pelo WhatsApp conectado.
+
+O Inbox possui sincronização protegida do histórico retido pela Uazapi. A primeira abertura sem conversas dispara a importação automaticamente; o botão de atualização permite refazer a sincronização sem duplicar mensagens. Áudios, imagens e documentos são acessados por uma rota autenticada, sem expor o token da instância ao navegador.
 
 ## Vercel
 

@@ -16,6 +16,37 @@ async function request(path: string, body: Record<string, unknown>) {
   return response.json().catch(() => ({})) as Promise<Record<string, unknown>>;
 }
 
+export type UazapiRecord = Record<string, unknown>;
+
+export async function findUazapiChats() {
+  const result = await request("/chat/find", {
+    operator: "AND",
+    sort: "-wa_lastMsgTimestamp",
+    limit: 2000,
+    offset: 0,
+    compact: false,
+    wa_isGroup: false,
+    wa_lastMsgTimestamp: ">0",
+  });
+  return Array.isArray(result.chats) ? result.chats as UazapiRecord[] : [];
+}
+
+export async function findUazapiMessages(offset = 0, limit = 1000) {
+  const result = await request("/message/find", { offset, limit });
+  const pagination = typeof result.pagination === "object" && result.pagination
+    ? result.pagination as UazapiRecord
+    : result;
+  return {
+    messages: Array.isArray(result.messages) ? result.messages as UazapiRecord[] : [],
+    hasMore: pagination.hasMore === true,
+    nextOffset: typeof pagination.nextOffset === "number" ? pagination.nextOffset : offset + limit,
+  };
+}
+
+export async function downloadUazapiMessage(id: string) {
+  return request("/message/download", { id, return_link: true, return_base64: false, generate_mp3: true });
+}
+
 export function normalizePhone(phone: string) {
   const digits = phone.replace(/\D/g, "");
   return digits.startsWith("55") ? digits : `55${digits}`;

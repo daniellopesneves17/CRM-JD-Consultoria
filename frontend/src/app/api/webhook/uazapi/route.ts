@@ -1,12 +1,12 @@
 // Webhook Uazapi: valida origem, persiste eventos e delega processamento pesado ao after().
-import { MessageType } from "@prisma/client";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createNotification, notifyAdmins } from "@/lib/notifications";
 import { allowRequest } from "@/lib/rate-limit";
+import { uazapiMediaUrl, uazapiMessageContent, uazapiMessageType } from "@/lib/uazapi-sync";
 import { analyzeSentiment, generatePreAttendance, generateWhatsAppReply } from "@/services/ai";
-import { normalizePhone, sendText } from "@/services/uazapi";
+import { downloadUazapiMessage, normalizePhone, sendText } from "@/services/uazapi";
 import { transcribeAudio } from "@/services/whisper";
 
 const payloadSchema = z.object({
@@ -18,11 +18,6 @@ const payloadSchema = z.object({
 }).passthrough().refine((payload) => Boolean(payload.event || payload.EventType), { message: "Evento ausente." });
 const asString = (value: unknown) => typeof value === "string" ? value : undefined;
 
-function messageType(raw?: string): MessageType {
-  const value = raw?.toLowerCase() ?? "";
-  if (value.includes("audio")) return "AUDIO"; if (value.includes("image")) return "IMAGE"; if (value.includes("document")) return "DOCUMENT"; return "TEXT";
-}
-
 async function configuredOwner() {
   const email = process.env.UAZAPI_OWNER_EMAIL?.trim().toLowerCase();
   if (!email) return null;
@@ -32,16 +27,15 @@ async function configuredOwner() {
 }
 
 async function processReceived(message: Record<string, unknown>) {
-  if (message.fromMe === true || message.isGroup === true) return;
+  if (message.isGroup === true) return;
+  const fromMe = message.fromMe === true;
   const chatId = asString(message.chatid) ?? asString(message.chatId) ?? asString(message.phone) ?? asString(message.sender);
   if (!chatId || chatId.endsWith("@lid")) return;
   const phone = normalizePhone(chatId.split("@")[0]);
-  const contentObject = typeof message.content === "object" && message.content ? message.content as Record<string, unknown> : {};
-  const content = asString(message.text) ?? asString(contentObject.text) ?? asString(message.body) ?? "";
-  const mediaUrl = asString(message.mediaUrl) ?? asString(message.file) ?? asString(contentObject.url);
-  const type = messageType(asString(message.messageType) ?? asString(message.type));
+  const content = uazapiMessageContent(message);
+  const type = uazapiMessageType(message.messageType ?? message.type);
   const externalId = asString(message.messageid) ?? asString(message.id);
-  const displayName = asString(message.pushName) ?? asString(message.senderName) ?? `WhatsApp ${phone.slice(-4)}`;
+  const displayName = fromMe ? `WhatsApp ${phone.slice(-4)}` : asString(message.pushName) ?? asString(message.senderName) ?? `WhatsApp ${phone.slice(-4)}`;
 
   const owner = await configuredOwner();
   const ownerData = owner ? { userId: owner.id } : {};
@@ -50,16 +44,21 @@ async function processReceived(message: Record<string, unknown>) {
     update: { lastActivityAt: new Date(), ...ownerData },
     create: { name: displayName, phone, stage: "NOVO", source: "WHATSAPP", lastActivityAt: new Date(), ...ownerData },
   });
+  const mediaUrl = externalId ? uazapiMediaUrl(message, lead.id) : null;
   let conversation = await prisma.conversation.findFirst({ where: { leadId: lead.id, status: { not: "ENCERRADO" } }, orderBy: { updatedAt: "desc" } });
   if (!conversation) conversation = await prisma.conversation.create({ data: { leadId: lead.id, uazapiChatId: chatId } });
   const previousCount = await prisma.message.count({ where: { conversationId: conversation.id } });
-  let transcription: string | null = null;
-  if (type === "AUDIO" && mediaUrl) transcription = await transcribeAudio(mediaUrl).catch(() => null);
   if (externalId) {
     const duplicate = await prisma.activity.findFirst({ where: { leadId: lead.id, type: "uazapi_message", detail: { contains: externalId } } });
     if (duplicate) return;
   }
-  const savedMessage = await prisma.message.create({ data: { conversationId: conversation.id, sender: "LEAD", content: content || transcription || `[${type.toLowerCase()} recebido]`, type, mediaUrl, transcription } });
+  let transcription: string | null = null;
+  if (type === "AUDIO" && externalId) {
+    const downloaded = await downloadUazapiMessage(externalId).catch(() => null);
+    const audioUrl = downloaded && typeof downloaded.fileURL === "string" ? downloaded.fileURL : null;
+    if (audioUrl) transcription = await transcribeAudio(audioUrl).catch(() => null);
+  }
+  const savedMessage = await prisma.message.create({ data: { conversationId: conversation.id, sender: fromMe ? "CORRETOR" : "LEAD", userId: fromMe ? owner?.id : null, content: content || transcription || `[${type.toLowerCase()} recebido]`, type, mediaUrl, transcription } });
   const notification = {
     type: "NEW_MESSAGE",
     title: "Nova mensagem no WhatsApp",
@@ -67,21 +66,25 @@ async function processReceived(message: Record<string, unknown>) {
     href: "/inbox",
     sourceKey: `message:${externalId || savedMessage.id}`,
   };
-  if (lead.userId) await createNotification({ ...notification, userId: lead.userId });
-  else await notifyAdmins(notification);
+  if (!fromMe) {
+    if (lead.userId) await createNotification({ ...notification, userId: lead.userId });
+    else await notifyAdmins(notification);
+  }
   if (externalId) await prisma.activity.create({ data: { leadId: lead.id, type: "uazapi_message", detail: JSON.stringify({ externalId, messageId: savedMessage.id }) } });
   const analyzedText = transcription || content;
-  if (analyzedText && process.env.OPENAI_API_KEY) {
+  if (!fromMe && analyzedText && process.env.OPENAI_API_KEY) {
     const sentiment = await analyzeSentiment(analyzedText).catch(() => null);
     if (sentiment) await prisma.conversation.update({ where: { id: conversation.id }, data: { sentiment: sentiment.sentiment } });
   }
-  if (conversation.status === "BOT" && analyzedText && process.env.OPENAI_API_KEY && process.env.UAZAPI_TOKEN) {
+  if (!fromMe && conversation.status === "BOT" && analyzedText && process.env.OPENAI_API_KEY && process.env.UAZAPI_TOKEN) {
     const history = await prisma.message.findMany({ where: { conversationId: conversation.id }, orderBy: { sentAt: "asc" }, take: 30 });
     const reply = previousCount === 0
       ? await generatePreAttendance({ leadPhone: phone, firstMessage: analyzedText })
       : await generateWhatsAppReply({ leadName: lead.name, leadStage: lead.stage, livesCount: lead.livesCount, notes: lead.notes ?? "", conversationHistory: history.map((item) => ({ role: item.sender === "LEAD" ? "user" as const : "assistant" as const, content: item.transcription || item.content })), triggerType: "new_message" });
-    await sendText(phone, reply);
-    await prisma.message.create({ data: { conversationId: conversation.id, sender: "BOT", content: reply } });
+    const sent = await sendText(phone, reply);
+    const replyMessage = await prisma.message.create({ data: { conversationId: conversation.id, sender: "BOT", content: reply } });
+    const replyExternalId = typeof sent.messageid === "string" ? sent.messageid : typeof sent.id === "string" ? sent.id : null;
+    if (replyExternalId) await prisma.activity.create({ data: { leadId: lead.id, type: "uazapi_message", detail: JSON.stringify({ externalId: replyExternalId, messageId: replyMessage.id }) } });
   }
 }
 

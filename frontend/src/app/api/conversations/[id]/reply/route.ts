@@ -16,8 +16,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!conversation) return NextResponse.json({ error: "Conversa não encontrada." }, { status: 404 });
     const suggestion = body.text ?? await generateWhatsAppReply({ leadName: conversation.lead.name, leadStage: conversation.lead.stage, livesCount: conversation.lead.livesCount, notes: conversation.lead.notes ?? "", conversationHistory: conversation.messages.map((message) => ({ role: message.sender === "LEAD" ? "user" as const : "assistant" as const, content: message.transcription || message.content })), triggerType: "new_message" });
     if (!body.send) return NextResponse.json({ suggestion });
-    await sendText(conversation.lead.phone, suggestion);
+    const sent = await sendText(conversation.lead.phone, suggestion);
     const message = await prisma.message.create({ data: { conversationId: id, sender: "CORRETOR", content: suggestion, userId: access.session.user.id } });
+    const externalId = typeof sent.messageid === "string" ? sent.messageid : typeof sent.id === "string" ? sent.id : null;
+    if (externalId) await prisma.activity.create({ data: { leadId: conversation.leadId, type: "uazapi_message", detail: JSON.stringify({ externalId, messageId: message.id }) } });
     await prisma.lead.update({ where: { id: conversation.leadId }, data: { lastActivityAt: new Date() } });
     return NextResponse.json({ suggestion, message });
   } catch (error) { return apiError(error, "Não foi possível gerar ou enviar a resposta."); }
