@@ -1,6 +1,7 @@
 // Webhook Uazapi: valida origem, persiste eventos e delega processamento pesado ao after().
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
+import { isAutomationActiveForUser } from "@/lib/automation-access";
 import { prisma } from "@/lib/prisma";
 import { createNotification, notifyAdmins } from "@/lib/notifications";
 import { allowRequest } from "@/lib/rate-limit";
@@ -58,7 +59,10 @@ async function processReceived(message: Record<string, unknown>, instanceToken?:
   let conversation = await prisma.conversation.findFirst({ where: { leadId: lead.id, status: { not: "ENCERRADO" } }, orderBy: { updatedAt: "desc" } });
   if (!conversation) conversation = await prisma.conversation.create({ data: { leadId: lead.id, uazapiChatId: chatId } });
   const previousCount = await prisma.message.count({ where: { conversationId: conversation.id } });
-  const preAttendanceRule = await prisma.automationRule.findUnique({ where: { id: "pre-attendance" }, select: { active: true } });
+  const [preAttendanceActive, sentimentActive] = await Promise.all([
+    isAutomationActiveForUser("pre-attendance", owner.id),
+    isAutomationActiveForUser("sentiment-analysis", owner.id),
+  ]);
   if (externalId) {
     const duplicate = await prisma.activity.findFirst({ where: { leadId: lead.id, type: "uazapi_message", detail: { contains: externalId } } });
     if (duplicate) return;
@@ -97,11 +101,11 @@ async function processReceived(message: Record<string, unknown>, instanceToken?:
   }
   if (externalId) await prisma.activity.create({ data: { leadId: lead.id, type: "uazapi_message", detail: JSON.stringify({ externalId, messageId: savedMessage.id }) } });
   const analyzedText = transcription || content;
-  if (!fromMe && analyzedText && isAiConfigured()) {
+  if (!fromMe && analyzedText && sentimentActive && isAiConfigured()) {
     const sentiment = await analyzeSentiment(analyzedText).catch(() => null);
     if (sentiment) await prisma.conversation.update({ where: { id: conversation.id }, data: { sentiment: sentiment.sentiment } });
   }
-  if (shouldUseAutomaticPreAttendance(fromMe, previousCount, preAttendanceRule?.active === true)) {
+  if (shouldUseAutomaticPreAttendance(fromMe, previousCount, preAttendanceActive)) {
     try {
       if (analyzedText && isAiConfigured() && process.env.UAZAPI_TOKEN) {
         const reply = await generatePreAttendance({ leadPhone: phone, firstMessage: analyzedText });

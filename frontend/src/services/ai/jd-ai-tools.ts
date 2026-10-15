@@ -9,6 +9,8 @@ import {
 } from "@prisma/client";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { z } from "zod";
+import { listAutomationsForActor, setAutomationActiveForActor } from "@/lib/automation-access";
+import { executeAutomationForUser } from "@/lib/automation-execution";
 import { prisma } from "@/lib/prisma";
 import { normalizePhone, sendText } from "@/services/uazapi";
 
@@ -135,7 +137,7 @@ export const JD_AI_CRM_TOOLS: FunctionTool[] = [
   {
     type: "function",
     name: "crm_salvar_automacao",
-    description: "Cria ou atualiza disparadores e automações. Exclusivo para administradores. Ativar uma regra exige confirmação explícita.",
+    description: "Ativa ou pausa automações no CRM do usuário atual. Administradores também podem criar e editar regras globais. Ativar exige confirmação explícita.",
     strict: false,
     parameters: {
       type: "object",
@@ -150,6 +152,22 @@ export const JD_AI_CRM_TOOLS: FunctionTool[] = [
         configuracao: { type: ["object", "null"], additionalProperties: true },
         ativa: nullableBoolean,
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "crm_executar_automacao",
+    description: "Executa agora uma automação ativa somente sobre a carteira do corretor autenticado. Pode enviar mensagens ou alterar leads e sempre exige que a mensagem atual comece com CONFIRMAR.",
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        limite: { type: "integer", minimum: 1, maximum: 20 },
+        usuario_id: nullableString,
+      },
+      required: ["id", "limite", "usuario_id"],
       additionalProperties: false,
     },
   },
@@ -316,8 +334,13 @@ async function queryCrm(raw: unknown, actor: JdAiActor) {
   if (args.recurso === "metas") {
     return prisma.goal.findMany({ where: actor.role === Role.ADMIN ? {} : { userId: actor.id }, include: { user: { select: { id: true, name: true } } }, orderBy: [{ year: "desc" }, { month: "desc" }], take: args.limite });
   }
+  if (args.recurso === "automacoes") {
+    const items = await listAutomationsForActor(actor);
+    return args.busca
+      ? items.filter((item) => item.name.toLowerCase().includes(args.busca!.toLowerCase())).slice(0, args.limite)
+      : items.slice(0, args.limite);
+  }
   assertAdmin(actor);
-  if (args.recurso === "automacoes") return prisma.automationRule.findMany({ where: args.busca ? { name: { contains: args.busca, mode: insensitive } } : {}, orderBy: { createdAt: "asc" }, take: args.limite });
   if (args.recurso === "usuarios") return prisma.user.findMany({ where: args.busca ? { OR: [{ name: { contains: args.busca, mode: insensitive } }, { email: { contains: args.busca, mode: insensitive } }] } : {}, orderBy: { name: "asc" }, take: args.limite, select: { id: true, name: true, email: true, phone: true, role: true, active: true, crmEnabled: true, lastLoginAt: true, loginCount: true, createdAt: true, _count: { select: { leads: true } } } });
   const [company, system, operators, objections] = await Promise.all([prisma.companySettings.upsert({ where: { id: "default" }, update: {}, create: { id: "default" } }), prisma.systemSettings.upsert({ where: { id: "global" }, update: {}, create: { id: "global" } }), prisma.operator.findMany({ orderBy: { name: "asc" } }), prisma.objectionLibrary.findMany({ orderBy: { createdAt: "asc" } })]);
   return { company, system, operators, objections };
@@ -410,9 +433,16 @@ async function saveGoal(raw: unknown, actor: JdAiActor) {
 
 const saveAutomationSchema = z.object({ id: z.string().nullable().optional(), nome: z.string().min(2).max(120).nullable().optional(), descricao: z.string().max(500).nullable().optional(), gatilho: z.string().min(2).max(120).nullable().optional(), atraso_horas: z.number().int().min(0).max(8760).nullable().optional(), modelo_mensagem: z.string().min(2).max(4000).nullable().optional(), modelo_ia: z.string().min(2).max(120).nullable().optional(), configuracao: z.record(z.string(), z.unknown()).nullable().optional(), ativa: z.boolean().nullable().optional() });
 async function saveAutomation(raw: unknown, context: ToolContext) {
-  assertAdmin(context.actor);
   const args = saveAutomationSchema.parse(raw);
   if (args.ativa === true) assertConfirmed(context, `ativar a automação ${args.nome || args.id || "informada"}`);
+  if (context.actor.role !== Role.ADMIN) {
+    if (!args.id || args.ativa == null) throw new Error("Informe o id e o estado desejado para ativar ou pausar uma automação do seu CRM.");
+    const attemptedGlobalEdit = args.nome != null || args.descricao != null || args.gatilho != null || args.atraso_horas != null || args.modelo_mensagem != null || args.modelo_ia != null || args.configuracao != null;
+    if (attemptedGlobalEdit) throw new Error("Corretores podem ativar ou pausar regras existentes, mas não alterar a definição global da automação.");
+    const item = await setAutomationActiveForActor(context.actor, args.id, args.ativa);
+    await audit(context.actor, `JD AI ${args.ativa ? "ativou" : "pausou"} a automação ${item.name} (${item.id}) somente no CRM do corretor.`);
+    return item;
+  }
   if (!args.id) {
     if (!args.nome || !args.gatilho || args.atraso_horas == null || !args.modelo_mensagem) throw new Error("Nome, gatilho, atraso e modelo da mensagem são obrigatórios.");
     const item = await prisma.automationRule.create({ data: { name: args.nome, description: args.descricao ?? "", trigger: args.gatilho, delayHours: args.atraso_horas, template: args.modelo_mensagem, model: args.modelo_ia ?? "gpt-4o", config: args.configuracao as Prisma.InputJsonValue | undefined, active: args.ativa ?? false } });
@@ -422,6 +452,19 @@ async function saveAutomation(raw: unknown, context: ToolContext) {
   const item = await prisma.automationRule.update({ where: { id: args.id }, data: { name: args.nome ?? undefined, description: args.descricao ?? undefined, trigger: args.gatilho ?? undefined, delayHours: args.atraso_horas ?? undefined, template: args.modelo_mensagem ?? undefined, model: args.modelo_ia ?? undefined, config: args.configuracao ? args.configuracao as Prisma.InputJsonValue : undefined, active: args.ativa ?? undefined } });
   await audit(context.actor, `JD AI atualizou a automação ${item.name} (${item.id}).`);
   return item;
+}
+
+async function runAutomation(raw: unknown, context: ToolContext) {
+  const args = z.object({
+    id: z.string().min(1),
+    limite: z.number().int().min(1).max(20),
+    usuario_id: z.string().nullable(),
+  }).parse(raw);
+  assertConfirmed(context, `executar a automação ${args.id}`);
+  const userId = context.actor.role === Role.ADMIN && args.usuario_id ? args.usuario_id : context.actor.id;
+  const result = await executeAutomationForUser(args.id, userId, args.limite);
+  await audit(context.actor, `JD AI executou a automação ${args.id} no CRM do usuário ${userId}: ${JSON.stringify(result)}.`);
+  return result;
 }
 
 const companyChanges = z.object({ name: z.string().min(2).max(120).optional(), cnpj: z.string().max(24).nullable().optional(), susep: z.string().max(40).nullable().optional(), address: z.string().max(300).nullable().optional(), phone: z.string().max(30).nullable().optional(), email: z.string().email().nullable().optional(), website: z.string().url().nullable().optional(), personaName: z.string().min(2).max(40).optional(), personaTone: z.enum(["formal", "friendly", "casual"]).optional(), botStartHour: z.number().int().min(0).max(23).optional(), botEndHour: z.number().int().min(0).max(23).optional(), welcomeMessage: z.string().max(300).nullable().optional(), offHoursMessage: z.string().max(200).nullable().optional() });
@@ -507,6 +550,7 @@ export async function executeJdAiCrmTool(name: string, rawArguments: string, con
     else if (name === "crm_salvar_proposta") result = await saveProposal(args, context.actor);
     else if (name === "crm_salvar_meta") result = await saveGoal(args, context.actor);
     else if (name === "crm_salvar_automacao") result = await saveAutomation(args, context);
+    else if (name === "crm_executar_automacao") result = await runAutomation(args, context);
     else if (name === "crm_salvar_configuracao") result = await saveSettings(args, context);
     else if (name === "crm_atualizar_usuario") result = await updateUser(args, context);
     else if (name === "crm_enviar_whatsapp") result = await sendWhatsApp(args, context);

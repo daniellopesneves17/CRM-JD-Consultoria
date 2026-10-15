@@ -34,6 +34,7 @@ model User {
   accessLogs        AccessLog[]
   notifications     Notification[]
   jdAiConversations JdAiConversation[]
+  automationPreferences AutomationPreference[]
   manualProfits     ManualProfit[]     @relation("ProfitBeneficiary")
   createdProfits    ManualProfit[]     @relation("ProfitCreator")
   voidedProfits     ManualProfit[]     @relation("ProfitVoider")
@@ -362,6 +363,20 @@ model AutomationRule {
   active         Boolean   @default(true)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+  preferences    AutomationPreference[]
+}
+
+model AutomationPreference {
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  automation   AutomationRule @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  automationId String
+  active       Boolean
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@id([userId, automationId])
+  @@index([automationId, active])
 }
 
 model SystemSettings {

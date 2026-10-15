@@ -1,8 +1,10 @@
 // Executa follow-ups e registra duração, volume processado e falhas para auditoria.
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { enabledAutomationUsers, isAutomationActiveForUser } from "@/lib/automation-access";
+import { executeAutomationForUser } from "@/lib/automation-execution";
 import { authorizeCron, failCron, finishCron, startCron } from "@/lib/cron";
-import { generateWhatsAppReply, suggestReactivationStrategy } from "@/services/ai";
+import { suggestReactivationStrategy } from "@/services/ai";
 import { sendText, type UazapiConfig } from "@/services/uazapi";
 
 export const maxDuration = 300;
@@ -19,10 +21,12 @@ export async function GET(request: Request) {
       take: 15
     });
     for (const task of dueReactivations) {
+      if (!(await isAutomationActiveForUser("base-reactivation", task.lead.userId))) continue;
       const messages = task.lead.conversations[0]?.messages ?? [];
-      const strategy = await suggestReactivationStrategy({ leadProfile: { name: task.lead.name, stage: task.lead.stage, lostReason: task.lead.lostReason ?? undefined, notes: task.lead.notes ?? undefined }, lastMessages: messages.map((item) => ({ sender: item.sender, content: item.content })) });
       const owner = task.lead.assignedTo;
-      const config: UazapiConfig | undefined = owner?.uazapiToken && owner.uazapiBaseUrl ? { baseUrl: owner.uazapiBaseUrl, token: owner.uazapiToken } : undefined;
+      if (!owner?.uazapiToken || !owner.uazapiBaseUrl) continue;
+      const config: UazapiConfig = { baseUrl: owner.uazapiBaseUrl, token: owner.uazapiToken };
+      const strategy = await suggestReactivationStrategy({ leadProfile: { name: task.lead.name, stage: task.lead.stage, lostReason: task.lead.lostReason ?? undefined, notes: task.lead.notes ?? undefined }, lastMessages: messages.map((item) => ({ sender: item.sender, content: item.content })) });
       await sendText(task.lead.phone, strategy.message, config);
       await prisma.$transaction([
         prisma.task.update({ where: { id: task.id }, data: { done: true, doneAt: new Date() } }),
@@ -31,22 +35,15 @@ export async function GET(request: Request) {
       sent += 1;
     }
 
-    const rules = await prisma.automationRule.findMany({ where: { trigger: "proposal_sent_no_response", active: true }, orderBy: { delayHours: "asc" } });
+    const rules = await prisma.automationRule.findMany({ where: { trigger: "proposal_sent_no_response" }, orderBy: { delayHours: "asc" } });
     for (const rule of rules) {
       if (sent >= 20) break;
-      const beforeRule = sent;
-      const threshold = new Date(Date.now() - rule.delayHours * 3_600_000);
-      const leads = await prisma.lead.findMany({ where: { stage: "PROPOSTA_ENVIADA", lastActivityAt: { lt: threshold }, activities: { none: { type: `follow_up_${rule.id}` } } }, include: { assignedTo: { select: { uazapiBaseUrl: true, uazapiToken: true } }, conversations: { orderBy: { updatedAt: "desc" }, take: 1, include: { messages: { orderBy: { sentAt: "asc" }, take: 30 } } } }, take: 20 - sent });
-      for (const lead of leads) {
-        const messages = lead.conversations[0]?.messages ?? [];
-        const text = await generateWhatsAppReply({ leadName: lead.name, leadStage: lead.stage, livesCount: lead.livesCount, notes: `${lead.notes ?? ""}\nModelo da regra: ${rule.template}`, conversationHistory: messages.map((item) => ({ role: item.sender === "LEAD" ? "user" as const : "assistant" as const, content: item.content })), triggerType: "follow_up" });
-        const owner = lead.assignedTo;
-        const config: UazapiConfig | undefined = owner?.uazapiToken && owner.uazapiBaseUrl ? { baseUrl: owner.uazapiBaseUrl, token: owner.uazapiToken } : undefined;
-        await sendText(lead.phone, text, config);
-        await prisma.activity.create({ data: { leadId: lead.id, type: `follow_up_${rule.id}`, detail: `Follow-up automático: ${rule.name}` } });
-        sent += 1;
+      const userIds = await enabledAutomationUsers(rule);
+      for (const userId of userIds) {
+        if (sent >= 20) break;
+        const result = await executeAutomationForUser(rule.id, userId, 20 - sent);
+        if ("sent" in result) sent += result.sent ?? 0;
       }
-      await prisma.automationRule.update({ where: { id: rule.id }, data: { sentCount: { increment: sent - beforeRule }, lastRunAt: new Date() } });
     }
     await finishCron(cron.id, sent);
     return NextResponse.json({ ok: true, sent });
