@@ -6,8 +6,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        brand: { 50: "#f0f4ff", 100: "#dbe4ff", 200: "#bac8ff", 500: "#1a3a8f", 600: "#0d2461", 700: "#0a1628", 900: "#070f1a" },
-        gold: { 400: "#d4b483", 500: "#c8a96e", 600: "#b8935a" },
+        brand: { 50: "#eff6ff", 100: "#dbeafe", 200: "#bfdbfe", 500: "#2563eb", 600: "#1d4ed8", 700: "#111827", 900: "#050608" },
+        gold: { 400: "#93c5fd", 500: "#60a5fa", 600: "#3b82f6" },
         success: { DEFAULT: "#16a34a", light: "#dcfce7" }, warning: { DEFAULT: "#d97706", light: "#fef3c7" }, danger: { DEFAULT: "#dc2626", light: "#fee2e2" }, muted: "#6b7280"
       },
       fontFamily: { sans: ["Inter", "ui-sans-serif", "system-ui"] },

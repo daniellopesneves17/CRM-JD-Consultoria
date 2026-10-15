@@ -49,7 +49,7 @@ Abra `http://localhost:3000`. O seed cria ou atualiza a conta indicada em `ADMIN
 
 ## OpenAI
 
-Configure `OPENAI_API_KEY`. Os modelos são selecionáveis por ambiente:
+Configure `OPENROUTER_API_KEY` para usar a OpenRouter (prioridade) ou `OPENAI_API_KEY` para conexão direta com a OpenAI. Na OpenRouter, use slugs completos, como `openai/gpt-5.6-luna-pro`. Os modelos são selecionáveis por ambiente:
 
 | Função | Variável | Padrão |
 |---|---|---|
@@ -57,22 +57,25 @@ Configure `OPENAI_API_KEY`. Os modelos são selecionáveis por ambiente:
 | Score e análise | `OPENAI_DEEP_MODEL` | `o3` |
 | Fallback profundo | `OPENAI_DEEP_FALLBACK_MODEL` | `gpt-4o` |
 | Sentimento/intenção | `OPENAI_CHEAP_MODEL` | `gpt-4o-mini` |
-| Transcrição | `OPENAI_TRANSCRIPTION_MODEL` | `whisper-1` |
+| Transcrição pela OpenRouter | `OPENROUTER_TRANSCRIPTION_MODEL` | `openai/whisper-large-v3-turbo` |
+| Transcrição direta pela OpenAI (fallback) | `OPENAI_TRANSCRIPTION_MODEL` | `whisper-1` |
 | JD AI com pesquisa web | `OPENAI_JD_AI_MODEL` | `gpt-4o` |
 
 As chamadas usam a Responses API para texto e Audio Transcriptions para mídia. Sem chave, o restante do CRM continua funcionando, mas recursos de IA retornam erro de configuração.
 
 ## Uazapi
 
-Preencha `UAZAPI_BASE_URL`, `UAZAPI_TOKEN` e `UAZAPI_WEBHOOK_SECRET`. No painel da instância, configure:
+Preencha `UAZAPI_BASE_URL`, `UAZAPI_TOKEN` e `UAZAPI_OWNER_EMAIL`. O token deve ser o token da instância, nunca o token administrativo do servidor. `UAZAPI_OWNER_EMAIL` vincula os leads recebidos ao corretor correspondente. No painel da instância, configure:
 
 ```text
 URL: https://crm-jd-consultoria.vercel.app/api/webhook/uazapi
-Header: x-webhook-secret: VALOR_DE_UAZAPI_WEBHOOK_SECRET
 Eventos: messages, messages_update
+Excluir mensagens: wasSentByApi
 ```
 
-O webhook ignora mensagens enviadas pela própria instância e grupos, normaliza o DDI 55, evita duplicidade pelo ID externo e responde imediatamente antes do processamento de IA.
+O webhook valida o token da instância enviado pela própria Uazapi no payload. Como alternativa para emissores manuais, também aceita o header `x-webhook-secret` quando `UAZAPI_WEBHOOK_SECRET` estiver configurado. Ele ignora grupos, normaliza o DDI 55, evita duplicidade pelo ID externo e registra tanto mensagens recebidas quanto mensagens enviadas manualmente pelo WhatsApp conectado.
+
+O Inbox possui sincronização protegida do histórico retido pela Uazapi. A primeira abertura sem conversas dispara a importação automaticamente; o botão de atualização permite refazer a sincronização sem duplicar mensagens. Áudios, imagens e documentos são acessados por uma rota autenticada, sem expor o token da instância ao navegador.
 
 ## Vercel
 

@@ -19,6 +19,9 @@ model User {
   avatarUrl         String?
   active            Boolean            @default(true)
   crmEnabled        Boolean            @default(true)
+  uazapiBaseUrl     String?
+  uazapiToken       String?
+  uazapiInstance    String?
   disabledReason    String?
   lastLoginAt       DateTime?
   loginCount        Int                @default(0)
@@ -77,6 +80,7 @@ model JdAiConversation {
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
   title     String        @default("Nova conversa")
+  context   String?       @db.Text
   messages  JdAiMessage[]
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
@@ -118,6 +122,7 @@ model Lead {
   name            String
   phone           String         @unique
   email           String?
+  avatarUrl       String?
   cpf             String?
   birthDate       DateTime?
   livesCount      Int            @default(1)
@@ -179,6 +184,7 @@ model Conversation {
   uazapiChatId String?
   status       ConvStatus @default(BOT)
   sentiment    Sentiment  @default(NEUTRO)
+  isUrgent     Boolean    @default(false)
   aiSummary    String?
   messages     Message[]
   createdAt    DateTime   @default(now())
@@ -229,6 +235,7 @@ enum MessageType {
   TEXT
   AUDIO
   IMAGE
+  VIDEO
   DOCUMENT
 }
 

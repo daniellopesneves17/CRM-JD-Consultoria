@@ -2,6 +2,7 @@ import { JdAiMessageRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { makeConversationTitle } from "@/lib/jd-ai";
+import { mergeJdAiContext, parseJdAiContextCommand } from "@/lib/jd-ai-context";
 import { allowRequest } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
 import { apiError, requireUser } from "@/lib/route";
@@ -29,6 +30,16 @@ export async function POST(request: Request) {
     if (body.conversationId && !existing) return NextResponse.json({ error: "Conversa não encontrada." }, { status: 404 });
 
     const conversation = existing ?? await prisma.jdAiConversation.create({ data: { userId: access.session.user.id } });
+    const contextCommand = parseJdAiContextCommand(body.message);
+    if (contextCommand) {
+      const context = contextCommand.type === "clear" ? null : mergeJdAiContext(conversation.context, contextCommand.content);
+      const userMessage = await prisma.jdAiMessage.create({ data: { conversationId: conversation.id, role: JdAiMessageRole.USER, content: body.message } });
+      const confirmation = contextCommand.type === "clear" ? "Contexto desta conversa apagado. A partir de agora, vou usar apenas as mensagens e informações novas que você enviar." : "Contexto salvo para esta conversa. Vou considerar essa orientação nas próximas respostas da JD AI.";
+      const assistantMessage = await prisma.jdAiMessage.create({ data: { conversationId: conversation.id, role: JdAiMessageRole.ASSISTANT, content: confirmation } });
+      const title = conversation.title === "Nova conversa" ? "Contexto da JD AI" : conversation.title;
+      await prisma.jdAiConversation.update({ where: { id: conversation.id }, data: { context, title } });
+      return NextResponse.json({ conversation: { id: conversation.id, title }, userMessage, assistantMessage });
+    }
     const [history, briefing] = await Promise.all([
       prisma.jdAiMessage.findMany({
         where: { conversationId: conversation.id },
@@ -48,6 +59,7 @@ export async function POST(request: Request) {
         history: history.reverse(),
         question: body.message,
         briefing: briefing?.content,
+        context: conversation.context,
         actor: {
           id: access.session.user.id,
           role: access.session.user.role,
@@ -68,8 +80,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ conversation: { id: conversation.id, title }, userMessage, assistantMessage });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("OPENAI_API_KEY")) {
-      return NextResponse.json({ error: "A JD AI ainda não está conectada à OpenAI. Configure OPENAI_API_KEY." }, { status: 503 });
+    if (error instanceof Error && error.message.includes("AI_API_KEY")) {
+      return NextResponse.json({ error: "A JD AI ainda não está conectada a um provedor de IA. Configure OPENROUTER_API_KEY ou OPENAI_API_KEY." }, { status: 503 });
     }
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
     if (code === "credit_balance_exhausted" || code === "insufficient_quota") {

@@ -1,45 +1,89 @@
 // Webhook Uazapi: valida origem, persiste eventos e delega processamento pesado ao after().
-import { MessageType } from "@prisma/client";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createNotification, notifyAdmins } from "@/lib/notifications";
 import { allowRequest } from "@/lib/rate-limit";
-import { analyzeSentiment, generatePreAttendance, generateWhatsAppReply } from "@/services/ai";
-import { normalizePhone, sendText } from "@/services/uazapi";
+import { shouldUseAutomaticPreAttendance, uazapiChatAvatar, uazapiChatName, uazapiMediaUrl, uazapiMessageContent, uazapiMessageType } from "@/lib/uazapi-sync";
+import { analyzeSentiment, generatePreAttendance } from "@/services/ai";
+import { isAiConfigured } from "@/services/ai/client";
+import { downloadUazapiMessage, normalizePhone, sendText, type UazapiConfig } from "@/services/uazapi";
 import { transcribeAudio } from "@/services/whisper";
 
-const payloadSchema = z.object({ event: z.string(), message: z.record(z.unknown()).optional(), data: z.record(z.unknown()).optional() }).passthrough();
+const payloadSchema = z.object({
+  event: z.string().optional(),
+  EventType: z.string().optional(),
+  token: z.string().optional(),
+  message: z.record(z.unknown()).optional(),
+  data: z.record(z.unknown()).optional(),
+}).passthrough().refine((payload) => Boolean(payload.event || payload.EventType), { message: "Evento ausente." });
 const asString = (value: unknown) => typeof value === "string" ? value : undefined;
 
-function messageType(raw?: string): MessageType {
-  const value = raw?.toLowerCase() ?? "";
-  if (value.includes("audio")) return "AUDIO"; if (value.includes("image")) return "IMAGE"; if (value.includes("document")) return "DOCUMENT"; return "TEXT";
+async function configuredOwner(token?: string) {
+  if (token) {
+    const linked = await prisma.user.findFirst({ where: { uazapiToken: token }, select: { id: true, active: true, crmEnabled: true, uazapiBaseUrl: true, uazapiToken: true } });
+    if (linked) return linked;
+  }
+  const email = process.env.UAZAPI_OWNER_EMAIL?.trim().toLowerCase();
+  if (!email) return null;
+  const owner = await prisma.user.findUnique({ where: { email }, select: { id: true, active: true, crmEnabled: true, uazapiBaseUrl: true, uazapiToken: true } });
+  if (!owner?.active || !owner.crmEnabled) throw new Error(`Responsável da Uazapi indisponível: ${email}`);
+  return owner;
 }
 
-async function processReceived(message: Record<string, unknown>) {
-  if (message.fromMe === true || message.isGroup === true) return;
+async function processReceived(message: Record<string, unknown>, instanceToken?: string) {
+  if (message.isGroup === true) return;
+  if (String(message.messageType ?? message.type ?? "").toLowerCase() === "call") return;
+  const fromMe = message.fromMe === true;
   const chatId = asString(message.chatid) ?? asString(message.chatId) ?? asString(message.phone) ?? asString(message.sender);
   if (!chatId || chatId.endsWith("@lid")) return;
   const phone = normalizePhone(chatId.split("@")[0]);
-  const contentObject = typeof message.content === "object" && message.content ? message.content as Record<string, unknown> : {};
-  const content = asString(message.text) ?? asString(contentObject.text) ?? asString(message.body) ?? "";
-  const mediaUrl = asString(message.mediaUrl) ?? asString(message.file) ?? asString(contentObject.url);
-  const type = messageType(asString(message.type));
+  const content = uazapiMessageContent(message);
+  const type = uazapiMessageType(message.messageType ?? message.type);
   const externalId = asString(message.messageid) ?? asString(message.id);
-  const displayName = asString(message.pushName) ?? asString(message.senderName) ?? `WhatsApp ${phone.slice(-4)}`;
+  const displayName = fromMe ? `WhatsApp ${phone.slice(-4)}` : asString(message.pushName) ?? asString(message.senderName) ?? `WhatsApp ${phone.slice(-4)}`;
+  const avatarUrl = uazapiChatAvatar(message);
+  const contactName = uazapiChatName(message, message, phone);
 
-  const lead = await prisma.lead.upsert({ where: { phone }, update: { lastActivityAt: new Date() }, create: { name: displayName, phone, stage: "NOVO", source: "WHATSAPP", lastActivityAt: new Date() } });
+  const owner = await configuredOwner(instanceToken);
+  if (!owner) throw new Error("Responsável da Uazapi não configurado.");
+  const config: UazapiConfig | undefined = owner.uazapiToken && owner.uazapiBaseUrl ? { baseUrl: owner.uazapiBaseUrl, token: owner.uazapiToken } : undefined;
+  const ownerData = owner ? { userId: owner.id } : {};
+  const lead = await prisma.lead.upsert({
+    where: { phone },
+    update: { name: contactName, lastActivityAt: new Date(), ...(avatarUrl ? { avatarUrl } : {}), ...ownerData },
+    create: { name: displayName, phone, avatarUrl, stage: "NOVO", source: "WHATSAPP", lastActivityAt: new Date(), ...ownerData },
+  });
+  const mediaUrl = externalId ? uazapiMediaUrl(message, lead.id) : null;
   let conversation = await prisma.conversation.findFirst({ where: { leadId: lead.id, status: { not: "ENCERRADO" } }, orderBy: { updatedAt: "desc" } });
   if (!conversation) conversation = await prisma.conversation.create({ data: { leadId: lead.id, uazapiChatId: chatId } });
   const previousCount = await prisma.message.count({ where: { conversationId: conversation.id } });
-  let transcription: string | null = null;
-  if (type === "AUDIO" && mediaUrl) transcription = await transcribeAudio(mediaUrl).catch(() => null);
+  const preAttendanceRule = await prisma.automationRule.findUnique({ where: { id: "pre-attendance" }, select: { active: true } });
   if (externalId) {
     const duplicate = await prisma.activity.findFirst({ where: { leadId: lead.id, type: "uazapi_message", detail: { contains: externalId } } });
     if (duplicate) return;
   }
-  const savedMessage = await prisma.message.create({ data: { conversationId: conversation.id, sender: "LEAD", content: content || transcription || `[${type.toLowerCase()} recebido]`, type, mediaUrl, transcription } });
+  const savedMessage = await prisma.message.create({ data: { conversationId: conversation.id, sender: fromMe ? "CORRETOR" : "LEAD", userId: fromMe ? owner?.id : null, content: content || `[${type.toLowerCase()} recebido]`, type, mediaUrl, transcription: null } });
+  await prisma.conversation.update({ where: { id: conversation.id }, data: { updatedAt: new Date() } });
+  let transcription: string | null = null;
+  if (type === "AUDIO" && externalId) {
+    const downloaded = await downloadUazapiMessage(externalId, config).catch(() => null);
+    const audioUrl = downloaded && typeof downloaded.fileURL === "string" ? downloaded.fileURL : null;
+    if (audioUrl) {
+      try {
+        transcription = await transcribeAudio(audioUrl);
+        if (transcription) await prisma.message.update({ where: { id: savedMessage.id }, data: { transcription } });
+      } catch (error) {
+        await prisma.errorLog.create({
+          data: {
+            source: "audio-transcription",
+            message: error instanceof Error ? error.message : "Falha desconhecida na transcrição.",
+            context: { leadId: lead.id, externalId },
+          },
+        }).catch(() => undefined);
+      }
+    }
+  }
   const notification = {
     type: "NEW_MESSAGE",
     title: "Nova mensagem no WhatsApp",
@@ -47,21 +91,28 @@ async function processReceived(message: Record<string, unknown>) {
     href: "/inbox",
     sourceKey: `message:${externalId || savedMessage.id}`,
   };
-  if (lead.userId) await createNotification({ ...notification, userId: lead.userId });
-  else await notifyAdmins(notification);
+  if (!fromMe) {
+    if (lead.userId) await createNotification({ ...notification, userId: lead.userId });
+    else await notifyAdmins(notification);
+  }
   if (externalId) await prisma.activity.create({ data: { leadId: lead.id, type: "uazapi_message", detail: JSON.stringify({ externalId, messageId: savedMessage.id }) } });
   const analyzedText = transcription || content;
-  if (analyzedText && process.env.OPENAI_API_KEY) {
+  if (!fromMe && analyzedText && isAiConfigured()) {
     const sentiment = await analyzeSentiment(analyzedText).catch(() => null);
     if (sentiment) await prisma.conversation.update({ where: { id: conversation.id }, data: { sentiment: sentiment.sentiment } });
   }
-  if (conversation.status === "BOT" && analyzedText && process.env.OPENAI_API_KEY && process.env.UAZAPI_TOKEN) {
-    const history = await prisma.message.findMany({ where: { conversationId: conversation.id }, orderBy: { sentAt: "asc" }, take: 30 });
-    const reply = previousCount === 0
-      ? await generatePreAttendance({ leadPhone: phone, firstMessage: analyzedText })
-      : await generateWhatsAppReply({ leadName: lead.name, leadStage: lead.stage, livesCount: lead.livesCount, notes: lead.notes ?? "", conversationHistory: history.map((item) => ({ role: item.sender === "LEAD" ? "user" as const : "assistant" as const, content: item.transcription || item.content })), triggerType: "new_message" });
-    await sendText(phone, reply);
-    await prisma.message.create({ data: { conversationId: conversation.id, sender: "BOT", content: reply } });
+  if (shouldUseAutomaticPreAttendance(fromMe, previousCount, preAttendanceRule?.active === true)) {
+    try {
+      if (analyzedText && isAiConfigured() && process.env.UAZAPI_TOKEN) {
+        const reply = await generatePreAttendance({ leadPhone: phone, firstMessage: analyzedText });
+        const sent = await sendText(phone, reply, config);
+        const replyMessage = await prisma.message.create({ data: { conversationId: conversation.id, sender: "BOT", content: reply } });
+        const replyExternalId = typeof sent.messageid === "string" ? sent.messageid : typeof sent.id === "string" ? sent.id : null;
+        if (replyExternalId) await prisma.activity.create({ data: { leadId: lead.id, type: "uazapi_message", detail: JSON.stringify({ externalId: replyExternalId, messageId: replyMessage.id }) } });
+      }
+    } finally {
+      await prisma.conversation.update({ where: { id: conversation.id }, data: { status: "HUMANO" } });
+    }
   }
 }
 
@@ -75,11 +126,16 @@ async function processUpdate(message: Record<string, unknown>) {
 }
 
 export async function POST(request: Request) {
-  if (!process.env.UAZAPI_WEBHOOK_SECRET || request.headers.get("x-webhook-secret") !== process.env.UAZAPI_WEBHOOK_SECRET) return new NextResponse("Unauthorized", { status: 401 });
+  const parsed = payloadSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ error: "Evento inválido." }, { status: 400 });
+  const headerAuthorized = Boolean(process.env.UAZAPI_WEBHOOK_SECRET) && request.headers.get("x-webhook-secret") === process.env.UAZAPI_WEBHOOK_SECRET;
+  const instanceAuthorized = Boolean(parsed.data.token) && (
+    parsed.data.token === process.env.UAZAPI_TOKEN
+    || Boolean(await prisma.user.findFirst({ where: { uazapiToken: parsed.data.token }, select: { id: true } }))
+  );
+  if (!headerAuthorized && !instanceAuthorized) return new NextResponse("Unauthorized", { status: 401 });
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
   if (!(await allowRequest(`uazapi:${ip}`, 120))) return new NextResponse("Too Many Requests", { status: 429 });
-  const parsed = payloadSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ error: "Evento inválido." }, { status: 400 });
-  const message = parsed.data.message ?? parsed.data.data ?? {}; const event = parsed.data.event.toLowerCase();
-  after(async () => { try { if (["messages", "message.received"].includes(event)) await processReceived(message); else if (["messages_update", "message.delivered", "message.read"].includes(event)) await processUpdate(message); } catch (error) { const text=error instanceof Error?error.message:"Falha desconhecida";await prisma.errorLog.create({data:{source:"webhook",message:text,stack:error instanceof Error?error.stack:undefined,context:{event}}}).catch(()=>undefined);console.error("Falha no processamento do webhook", error instanceof Error ? { name: error.name, message: error.message } : { type: typeof error }); } });
+  const message = parsed.data.message ?? parsed.data.data ?? {}; const event = (parsed.data.event ?? parsed.data.EventType ?? "").toLowerCase();
+  after(async () => { try { if (["messages", "message.received"].includes(event)) await processReceived(message, parsed.data.token); else if (["messages_update", "message.delivered", "message.read"].includes(event)) await processUpdate(message); } catch (error) { const text=error instanceof Error?error.message:"Falha desconhecida";await prisma.errorLog.create({data:{source:"webhook",message:text,stack:error instanceof Error?error.stack:undefined,context:{event}}}).catch(()=>undefined);console.error("Falha no processamento do webhook", error instanceof Error ? { name: error.name, message: error.message } : { type: typeof error }); } });
   return NextResponse.json({ ok: true });
 }
