@@ -31,7 +31,7 @@ export function calculateGoalStatus({ targetValue, currentValue, month, year }: 
   const workdaysRemaining = today > end ? 0 : workdaysBetween(new Date(reference.getFullYear(), reference.getMonth(), reference.getDate() + 1, 12), end);
   const percentage = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
   const expectedPercentage = workdaysTotal ? (workdaysElapsed / workdaysTotal) * 100 : 100;
-  const color = percentage >= expectedPercentage * 1.1 ? "green" : percentage >= expectedPercentage * 0.85 ? "yellow" : "red";
+  const color = percentage >= 100 || percentage >= expectedPercentage * 1.1 ? "green" : percentage >= expectedPercentage * 0.85 ? "yellow" : "red";
   const dailyNeeded = workdaysRemaining ? Math.max(0, targetValue - currentValue) / workdaysRemaining : 0;
   const projectedEnd = workdaysElapsed ? (currentValue / workdaysElapsed) * workdaysTotal : 0;
   return { percentage: Number(percentage.toFixed(1)), color, workdaysTotal, workdaysElapsed, workdaysRemaining, expectedPercentage: Number(expectedPercentage.toFixed(1)), dailyNeeded: Number(dailyNeeded.toFixed(2)), projectedEnd: Number(projectedEnd.toFixed(2)), onTrack: projectedEnd >= targetValue } as const;

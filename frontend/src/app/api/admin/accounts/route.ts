@@ -10,12 +10,13 @@ export async function GET() {
   const access = await requireAdmin(); if ("response" in access) return access.response;
   const now = new Date(); const [settings, accounts] = await Promise.all([
     prisma.systemSettings.upsert({ where: { id: "global" }, update: {}, create: { id: "global" } }),
-    prisma.user.findMany({ include: { goals: { where: { month: now.getMonth() + 1, year: now.getFullYear() }, take: 1 }, leads: { select: { stage: true, estimatedValue: true, proposals: { where: { status: "ACEITA" }, select: { monthlyValue: true } } } } }, orderBy: { createdAt: "asc" } })
+    prisma.user.findMany({ include: { goals: { where: { month: now.getMonth() + 1, year: now.getFullYear() }, take: 1 }, leads: { select: { stage: true, estimatedValue: true, proposals: { where: { status: "ACEITA" }, select: { monthlyValue: true } } } }, manualProfits: { where: { voidedAt: null }, select: { amount: true } } }, orderBy: { createdAt: "asc" } })
   ]);
-  return NextResponse.json({ settings, accounts: accounts.map(({ passwordHash: _passwordHash, goals, leads, ...account }) => {
-    const goal = goals[0]; const target = goal ? Number(goal.targetValue) : 0; const current = goal ? Number(goal.currentValue) : leads.flatMap((lead) => lead.proposals).reduce((sum, item) => sum + Number(item.monthlyValue), 0);
+  return NextResponse.json({ settings, accounts: accounts.map(({ passwordHash: _passwordHash, goals, leads, manualProfits, ...account }) => {
+    const proposalRevenue = leads.flatMap((lead) => lead.proposals).reduce((sum, item) => sum + Number(item.monthlyValue), 0); const manualRevenue = manualProfits.reduce((sum, item) => sum + Number(item.amount), 0);
+    const goal = goals[0]; const target = goal ? Number(goal.targetValue) : 0; const current = goal ? Number(goal.currentValue) : proposalRevenue + manualRevenue;
     const status = target ? calculateGoalStatus({ targetValue: target, currentValue: current, month: now.getMonth() + 1, year: now.getFullYear() }) : null;
-    const revenue = leads.flatMap((lead) => lead.proposals).reduce((sum, item) => sum + Number(item.monthlyValue), 0); const closed = leads.filter((lead) => lead.stage === "FECHADO").length; const qualified = leads.filter((lead) => lead.stage !== "NOVO" && lead.stage !== "PERDIDO").length;
+    const revenue = proposalRevenue + manualRevenue; const closed = leads.filter((lead) => lead.stage === "FECHADO").length; const qualified = leads.filter((lead) => lead.stage !== "NOVO" && lead.stage !== "PERDIDO").length;
     const insightStatus = !goal ? "NO_DATA" : status?.color === "green" ? "ON_TRACK" : status?.color === "red" ? "DIFFICULTY" : "BEHIND";
     const label = insightStatus === "ON_TRACK" ? "Batendo a meta" : insightStatus === "DIFFICULTY" ? "Com dificuldade" : insightStatus === "BEHIND" ? "Atenção ao ritmo" : "Sem meta";
     const message = !goal ? "Defina uma meta mensal para gerar a análise." : status?.onTrack ? `Projeção de ${Math.round(status.projectedEnd).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}.` : `Precisa de ${status?.dailyNeeded.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} por dia útil para alcançar a meta.`;

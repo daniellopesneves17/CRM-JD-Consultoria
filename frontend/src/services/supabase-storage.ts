@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 
 export const PUBLIC_ASSET_MAX_BYTES = 20 * 1024 * 1024;
 export const PUBLIC_ASSET_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+export const PROFIT_PROOF_MAX_BYTES = 20 * 1024 * 1024;
+export const PROFIT_PROOF_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "application/pdf"]);
 
 function storageClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -60,6 +62,40 @@ export async function publicAssetExists(path: string) {
   const { data, error } = await storageClient().storage.from("assets").list(folder, { search: name, limit: 10 });
   if (error) throw new Error(`Falha ao confirmar upload: ${error.message}`);
   return data.some((object) => object.name === name);
+}
+
+export function validateProfitProof(contentType: unknown, size: unknown) {
+  if (typeof contentType !== "string" || !PROFIT_PROOF_TYPES.has(contentType) || typeof size !== "number" || !Number.isInteger(size) || size <= 0 || size > PROFIT_PROOF_MAX_BYTES) {
+    throw new Error("Envie um comprovante PNG, JPG, WebP ou PDF de até 20 MB.");
+  }
+}
+
+export function profitProofExtension(contentType: string) {
+  if (contentType === "application/pdf") return "pdf";
+  if (contentType === "image/png") return "png";
+  if (contentType === "image/webp") return "webp";
+  return "jpg";
+}
+
+export async function createProfitProofUpload(path: string) {
+  const { data, error } = await storageClient().storage.from("profit-proofs").createSignedUploadUrl(path, { upsert: false });
+  if (error) throw new Error(`Falha ao autorizar o comprovante: ${error.message}`);
+  return { path, signedUrl: data.signedUrl };
+}
+
+export async function profitProofExists(path: string) {
+  const separator = path.lastIndexOf("/");
+  const folder = separator >= 0 ? path.slice(0, separator) : "";
+  const name = path.slice(separator + 1);
+  const { data, error } = await storageClient().storage.from("profit-proofs").list(folder, { search: name, limit: 10 });
+  if (error) throw new Error(`Falha ao confirmar o comprovante: ${error.message}`);
+  return data.some((object) => object.name === name);
+}
+
+export async function createProfitProofViewUrl(path: string) {
+  const { data, error } = await storageClient().storage.from("profit-proofs").createSignedUrl(path, 5 * 60);
+  if (error) throw new Error(`Falha ao abrir o comprovante: ${error.message}`);
+  return data.signedUrl;
 }
 
 export async function getStorageUsage() {

@@ -17,14 +17,15 @@ export async function GET() {
       orderBy: { name: "asc" },
       include: {
         goals: { where: { month: now.getMonth() + 1, year: now.getFullYear() }, take: 1 },
-        leads: { include: { conversations: { where: { createdAt: { gte: previousStart } }, include: { messages: { orderBy: { sentAt: "asc" }, select: { sender: true, sentAt: true } } } } } }
+        leads: { include: { conversations: { where: { createdAt: { gte: previousStart } }, include: { messages: { orderBy: { sentAt: "asc" }, select: { sender: true, sentAt: true } } } } } },
+        manualProfits: { where: { occurredAt: { gte: previousStart, lt: end }, voidedAt: null }, select: { amount: true, occurredAt: true } }
       }
     });
     const rows = users.map((user) => {
       const currentClosed = user.leads.filter((lead) => lead.stage === "FECHADO" && lead.updatedAt >= start && lead.updatedAt < end);
       const previousClosed = user.leads.filter((lead) => lead.stage === "FECHADO" && lead.updatedAt >= previousStart && lead.updatedAt < start);
-      const revenue = currentClosed.reduce((sum, lead) => sum + Number(lead.estimatedValue ?? 0), 0);
-      const previousRevenue = previousClosed.reduce((sum, lead) => sum + Number(lead.estimatedValue ?? 0), 0);
+      const revenue = currentClosed.reduce((sum, lead) => sum + Number(lead.estimatedValue ?? 0), 0) + user.manualProfits.filter((entry) => entry.occurredAt >= start).reduce((sum, entry) => sum + Number(entry.amount), 0);
+      const previousRevenue = previousClosed.reduce((sum, lead) => sum + Number(lead.estimatedValue ?? 0), 0) + user.manualProfits.filter((entry) => entry.occurredAt < start).reduce((sum, entry) => sum + Number(entry.amount), 0);
       const responseMinutes = user.leads.flatMap((lead) => lead.conversations).map((conversation) => {
         const firstLead = conversation.messages.find((message) => message.sender === "LEAD");
         const firstReply = firstLead && conversation.messages.find((message) => message.sender !== "LEAD" && message.sentAt > firstLead.sentAt);

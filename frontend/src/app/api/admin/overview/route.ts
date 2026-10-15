@@ -11,18 +11,20 @@ export async function GET() {
   if ("response" in access) return access.response;
   try {
     const { start, end, previousStart } = monthBounds();
-    const [activeClosed, currentClosed, previousClosed, currentLeads, previousLeads, currentQualified, previousQualified] = await Promise.all([
+    const [activeClosed, currentClosed, previousClosed, currentManualProfit, previousManualProfit, currentLeads, previousLeads, currentQualified, previousQualified] = await Promise.all([
       prisma.lead.aggregate({ where: { stage: "FECHADO" }, _sum: { estimatedValue: true, livesCount: true } }),
       prisma.lead.aggregate({ where: { stage: "FECHADO", updatedAt: { gte: start, lt: end } }, _sum: { estimatedValue: true, livesCount: true }, _count: true }),
       prisma.lead.aggregate({ where: { stage: "FECHADO", updatedAt: { gte: previousStart, lt: start } }, _sum: { estimatedValue: true, livesCount: true }, _count: true }),
+      prisma.manualProfit.aggregate({ where: { occurredAt: { gte: start, lt: end }, voidedAt: null }, _sum: { amount: true } }),
+      prisma.manualProfit.aggregate({ where: { occurredAt: { gte: previousStart, lt: start }, voidedAt: null }, _sum: { amount: true } }),
       prisma.lead.count({ where: { createdAt: { gte: start, lt: end } } }),
       prisma.lead.count({ where: { createdAt: { gte: previousStart, lt: start } } }),
       prisma.lead.count({ where: { createdAt: { gte: start, lt: end }, stage: { in: [...qualifiedStages] } } }),
       prisma.lead.count({ where: { createdAt: { gte: previousStart, lt: start }, stage: { in: [...qualifiedStages] } } })
     ]);
     const mrr = Number(activeClosed._sum.estimatedValue ?? 0);
-    const currentRevenue = Number(currentClosed._sum.estimatedValue ?? 0);
-    const previousRevenue = Number(previousClosed._sum.estimatedValue ?? 0);
+    const currentRevenue = Number(currentClosed._sum.estimatedValue ?? 0) + Number(currentManualProfit._sum.amount ?? 0);
+    const previousRevenue = Number(previousClosed._sum.estimatedValue ?? 0) + Number(previousManualProfit._sum.amount ?? 0);
     const currentConversion = percentage(currentClosed._count, currentQualified);
     const previousConversion = percentage(previousClosed._count, previousQualified);
     return NextResponse.json({

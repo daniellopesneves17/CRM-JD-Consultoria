@@ -1,4 +1,51 @@
-﻿"use client";
-// Dashboard de KPIs com dados reais de funil e receita.
-import { useState } from "react";import useSWR from "swr";import { Activity,BadgeDollarSign,CalendarClock,HeartHandshake,Percent,Timer,UserPlus,Users } from "lucide-react";import { Card } from "@/components/ui/Card";import { KpiCard } from "@/components/metrics/KpiCard";import { ConversionFunnel } from "@/components/metrics/ConversionFunnel";import { RevenueChart } from "@/components/metrics/RevenueChart";import { useMetrics } from "@/hooks/useMetrics";import { money } from "@/lib/utils";
-const fetcher=async(url:string)=>{const response=await fetch(url);if(!response.ok)throw new Error("Falha ao carregar gráfico.");return response.json()};export default function MetricsPage(){const[days,setDays]=useState(30);const{data}=useMetrics(days);const{data:funnel=[]}=useSWR<Array<{stage:string;total:number}>>("/api/metrics/funnel",fetcher);const{data:revenue=[]}=useSWR<Array<{month:string;revenue:number}>>("/api/metrics/revenue",fetcher);return <><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="label">Inteligência comercial</p><h1 className="mt-1 text-3xl font-semibold">Métricas</h1><p className="mt-1 text-sm text-slate-500">Resultados consolidados da operação.</p></div><select value={days} onChange={event=>setDays(Number(event.target.value))} className="h-10 rounded border bg-white px-3 text-sm"><option value={7}>Últimos 7 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 3 meses</option><option value={365}>Últimos 12 meses</option></select></div><div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><KpiCard label="Leads gerados" value={String(data.leads)} icon={UserPlus}/><KpiCard label="Taxa de qualificação" value={`${data.qualificationRate.toFixed(1)}%`} icon={Percent}/><KpiCard label="Taxa de fechamento" value={`${data.closingRate.toFixed(1)}%`} icon={HeartHandshake}/><KpiCard label="Ticket médio" value={money(data.averageTicket)} icon={BadgeDollarSign}/><KpiCard label="Receita total" value={money(data.revenue)} icon={Activity}/><KpiCard label="Vidas ativas" value={String(data.activeLives)} icon={Users}/><KpiCard label="Churn mensal" value={`${data.churnRate}%`} icon={CalendarClock}/><KpiCard label="Tempo de fechamento" value={`${data.averageClosingDays.toFixed(1)} dias`} icon={Timer}/></div><div className="mt-6 grid gap-6 xl:grid-cols-2"><Card className="p-6"><h2 className="text-lg font-semibold">Funil de conversão</h2><ConversionFunnel data={funnel.map(item=>({name:item.stage.replaceAll("_"," "),value:item.total}))}/></Card><Card className="p-6"><h2 className="text-lg font-semibold">Receita por mês</h2><RevenueChart data={revenue.map(item=>({month:item.month,value:item.revenue}))}/></Card></div></>}
+"use client";
+
+// Dashboard de KPIs com dados reais de funil, propostas e lucros lançados manualmente.
+import { useState } from "react";
+import useSWR from "swr";
+import { Activity, BadgeDollarSign, CalendarClock, HandCoins, HeartHandshake, Percent, Timer, UserPlus, Users } from "lucide-react";
+import { Card } from "@/components/ui/Card";
+import { KpiCard } from "@/components/metrics/KpiCard";
+import { ConversionFunnel } from "@/components/metrics/ConversionFunnel";
+import { ManualProfitPanel } from "@/components/metrics/ManualProfitPanel";
+import { RevenueChart } from "@/components/metrics/RevenueChart";
+import { useMetrics } from "@/hooks/useMetrics";
+import { money } from "@/lib/utils";
+
+const fetcher = async (url: string) => {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Falha ao carregar gráfico.");
+  return response.json();
+};
+
+export default function MetricsPage() {
+  const [days, setDays] = useState(30);
+  const { data } = useMetrics(days);
+  const { data: funnel = [] } = useSWR<Array<{ stage: string; total: number }>>("/api/metrics/funnel", fetcher);
+  const { data: revenue = [] } = useSWR<Array<{ month: string; revenue: number }>>("/api/metrics/revenue", fetcher);
+
+  return <>
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div><p className="label">Inteligência comercial</p><h1 className="mt-1 text-3xl font-semibold">Métricas</h1><p className="mt-1 text-sm text-slate-500">Resultados consolidados da operação.</p></div>
+      <select value={days} onChange={(event) => setDays(Number(event.target.value))} className="h-10 rounded border bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900">
+        <option value={7}>Últimos 7 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 3 meses</option><option value={365}>Últimos 12 meses</option>
+      </select>
+    </div>
+    <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+      <KpiCard label="Leads gerados" value={String(data.leads)} icon={UserPlus}/>
+      <KpiCard label="Taxa de qualificação" value={`${data.qualificationRate.toFixed(1)}%`} icon={Percent}/>
+      <KpiCard label="Taxa de fechamento" value={`${data.closingRate.toFixed(1)}%`} icon={HeartHandshake}/>
+      <KpiCard label="Ticket médio" value={money(data.averageTicket)} icon={BadgeDollarSign}/>
+      <KpiCard label="Receita total" value={money(data.revenue)} icon={Activity}/>
+      <KpiCard label="Lucros manuais" value={money(data.manualProfit)} icon={HandCoins}/>
+      <KpiCard label="Vidas ativas" value={String(data.activeLives)} icon={Users}/>
+      <KpiCard label="Churn mensal" value={`${data.churnRate}%`} icon={CalendarClock}/>
+      <KpiCard label="Tempo de fechamento" value={`${data.averageClosingDays.toFixed(1)} dias`} icon={Timer}/>
+    </div>
+    <ManualProfitPanel/>
+    <div className="mt-6 grid gap-6 xl:grid-cols-2">
+      <Card className="p-6"><h2 className="text-lg font-semibold">Funil de conversão</h2><ConversionFunnel data={funnel.map((item) => ({ name: item.stage.replaceAll("_", " "), value: item.total }))}/></Card>
+      <Card className="p-6"><h2 className="text-lg font-semibold">Receita por mês</h2><RevenueChart data={revenue.map((item) => ({ month: item.month, value: item.revenue }))}/></Card>
+    </div>
+  </>;
+}
