@@ -19,6 +19,7 @@ export function calculateCost(model: string, usage: Usage) {
   const pricing: Record<string, { input: number; output: number }> = {
     "gpt-4o": { input: 0.0000025, output: 0.00001 },
     "gpt-4o-mini": { input: 0.00000015, output: 0.0000006 },
+    "gpt-5.6-luna": { input: 0.0000002, output: 0.0000012 },
     o3: { input: 0.00001, output: 0.00004 }
   };
   const exact = pricing[model] ?? Object.entries(pricing).find(([key]) => model.startsWith(key))?.[1];

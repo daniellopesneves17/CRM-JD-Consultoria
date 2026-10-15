@@ -27,10 +27,10 @@ const fetchJson = async <T,>(url: string): Promise<T> => {
 };
 
 const suggestions = [
+  "Mostre uma visão geral dos resultados dos últimos 30 dias.",
+  "Liste as tarefas atrasadas e os leads relacionados.",
+  "Quais automações estão ativas e como estão configuradas?",
   "Quais mudanças recentes da ANS merecem atenção?",
-  "Explique portabilidade de carências de forma simples.",
-  "Quais assuntos estão em alta no mercado de planos de saúde?",
-  "Crie um resumo do cenário atual para minha reunião comercial.",
 ];
 
 function parseSources(value: unknown): JdAiSource[] {

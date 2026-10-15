@@ -44,7 +44,17 @@ export async function POST(request: Request) {
     });
     let answer: Awaited<ReturnType<typeof answerJdAi>>;
     try {
-      answer = await answerJdAi({ history: history.reverse(), question: body.message, briefing: briefing?.content });
+      answer = await answerJdAi({
+        history: history.reverse(),
+        question: body.message,
+        briefing: briefing?.content,
+        actor: {
+          id: access.session.user.id,
+          role: access.session.user.role,
+          name: access.session.user.name,
+          email: access.session.user.email,
+        },
+      });
     } catch (error) {
       await prisma.jdAiMessage.delete({ where: { id: userMessage.id } }).catch(() => undefined);
       if (!existing) await prisma.jdAiConversation.delete({ where: { id: conversation.id } }).catch(() => undefined);
@@ -60,6 +70,13 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof Error && error.message.includes("OPENAI_API_KEY")) {
       return NextResponse.json({ error: "A JD AI ainda não está conectada à OpenAI. Configure OPENAI_API_KEY." }, { status: 503 });
+    }
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+    if (code === "credit_balance_exhausted" || code === "insufficient_quota") {
+      return NextResponse.json({ error: "A JD AI está conectada, mas a conta da OpenAI está sem créditos. Adicione saldo para continuar." }, { status: 503 });
+    }
+    if (code === "model_not_found") {
+      return NextResponse.json({ error: "O modelo configurado para a JD AI não está disponível nesta conta. Revise OPENAI_JD_AI_MODEL." }, { status: 503 });
     }
     return apiError(error, "A JD AI não conseguiu responder agora.");
   }
