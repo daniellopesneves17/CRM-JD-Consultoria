@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Bot, ExternalLink, History, LoaderCircle, Menu, MessageSquarePlus, Newspaper, Send, Sparkles, Trash2, X } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import useSWR from "swr";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
@@ -36,8 +38,33 @@ function parseSources(value: unknown): JdAiSource[] {
   return value.filter((item): item is JdAiSource => Boolean(item && typeof item === "object" && "url" in item && "title" in item && typeof item.url === "string" && typeof item.title === "string"));
 }
 
-function MessageText({ content }: { content: string }) {
-  return <div className="space-y-3 whitespace-pre-wrap leading-7">{content.split(/\n{2,}/).map((block, index) => <p key={`${index}-${block.slice(0, 12)}`}>{block}</p>)}</div>;
+function MessageText({ content, markdown = false }: { content: string; markdown?: boolean }) {
+  if (!markdown) return <div className="whitespace-pre-wrap leading-7">{content}</div>;
+
+  return <ReactMarkdown
+    remarkPlugins={[remarkGfm]}
+    components={{
+      h1: ({ children }) => <h1 className="mb-3 mt-6 text-xl font-bold tracking-tight first:mt-0">{children}</h1>,
+      h2: ({ children }) => <h2 className="mb-2 mt-6 text-lg font-bold tracking-tight first:mt-0">{children}</h2>,
+      h3: ({ children }) => <h3 className="mb-2 mt-5 text-base font-semibold first:mt-0">{children}</h3>,
+      h4: ({ children }) => <h4 className="mb-2 mt-4 font-semibold first:mt-0">{children}</h4>,
+      p: ({ children }) => <p className="my-3 leading-7 first:mt-0 last:mb-0">{children}</p>,
+      ul: ({ children }) => <ul className="my-3 list-disc space-y-1.5 pl-6 marker:text-brand-500">{children}</ul>,
+      ol: ({ children }) => <ol className="my-3 list-decimal space-y-1.5 pl-6 marker:font-semibold marker:text-brand-600 dark:marker:text-brand-200">{children}</ol>,
+      li: ({ children }) => <li className="pl-1 leading-7 [&>p]:my-0">{children}</li>,
+      strong: ({ children }) => <strong className="font-semibold text-slate-950 dark:text-white">{children}</strong>,
+      em: ({ children }) => <em className="italic">{children}</em>,
+      blockquote: ({ children }) => <blockquote className="my-4 border-l-4 border-brand-300 bg-brand-50/70 px-4 py-2 text-slate-600 dark:border-brand-700 dark:bg-brand-950/25 dark:text-slate-300">{children}</blockquote>,
+      a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer" className="font-medium text-brand-600 underline decoration-brand-300 underline-offset-2 hover:text-brand-500 dark:text-blue-300">{children}</a>,
+      hr: () => <hr className="my-5 border-slate-200 dark:border-slate-700"/>,
+      pre: ({ children }) => <pre className="my-4 overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-100 shadow-inner">{children}</pre>,
+      code: ({ children, className }) => <code className={cn("rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[.9em] text-slate-800 dark:bg-slate-800 dark:text-slate-100", className)}>{children}</code>,
+      table: ({ children }) => <div className="my-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700"><table className="w-full border-collapse text-left text-xs">{children}</table></div>,
+      thead: ({ children }) => <thead className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">{children}</thead>,
+      th: ({ children }) => <th className="border-b border-slate-200 px-3 py-2.5 font-semibold dark:border-slate-700">{children}</th>,
+      td: ({ children }) => <td className="border-b border-slate-100 px-3 py-2.5 align-top last:border-b-0 dark:border-slate-800">{children}</td>,
+    }}
+  >{content}</ReactMarkdown>;
 }
 
 function resizeMessageInput(textarea: HTMLTextAreaElement) {
@@ -181,7 +208,7 @@ export default function JdAiPage() {
               return <article key={message.id} className={cn("flex gap-3 sm:gap-4", message.role === "USER" && "justify-end")}>
                 {message.role === "ASSISTANT" && <span className="mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Sparkles size={17}/></span>}
                 <div className={cn("max-w-[88%] text-sm", message.role === "USER" ? "rounded-2xl rounded-br-md bg-brand-600 px-4 py-3 text-white shadow-md shadow-blue-950/10" : "min-w-0 flex-1 text-slate-700 dark:text-slate-200")}>
-                  <MessageText content={message.content}/>
+                  <MessageText content={message.content} markdown={message.role === "ASSISTANT"}/>
                   {sources.length > 0 && <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-800"><p className="mb-2 text-[11px] font-semibold uppercase tracking-[.12em] text-slate-500">Fontes consultadas</p><div className="flex flex-wrap gap-2">{sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer" className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"><span className="truncate">{source.title}</span><ExternalLink className="shrink-0" size={12}/></a>)}</div></div>}
                 </div>
               </article>;
