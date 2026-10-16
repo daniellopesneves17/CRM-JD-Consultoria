@@ -94,6 +94,10 @@ export function uazapiFingerprint(sender: MessageSender, content: string, sentAt
   return `${sender}|${content}|${Math.floor(sentAt.getTime() / 60_000)}`;
 }
 
+export function uazapiPageReachedCutoff(messages: UazapiRecord[], since?: Date) {
+  return Boolean(since && messages.some((message) => uazapiMessageDate(message.messageTimestamp) <= since));
+}
+
 export function shouldUseAutomaticPreAttendance(fromMe: boolean, previousCount: number, enabled = true) {
   return enabled && !fromMe && previousCount === 0;
 }

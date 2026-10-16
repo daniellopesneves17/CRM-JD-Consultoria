@@ -7,7 +7,6 @@ export function useConversations(ownerId?: string) {
   const [activeId, setActiveId] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
-  const attemptedInitialSync = useRef(false);
   const lastVersion = useRef<string | null>(null);
   const endpoint = ownerId ? `/api/conversations?ownerId=${encodeURIComponent(ownerId)}` : "/api/conversations";
   const versionEndpoint = ownerId ? `/api/conversations/version?ownerId=${encodeURIComponent(ownerId)}` : "/api/conversations/version";
@@ -41,11 +40,5 @@ export function useConversations(ownerId?: string) {
     lastVersion.current = version;
   }, [mutate, versionData?.version]);
   useEffect(()=>{if(!activeId&&data[0])setActiveId(data[0].id)},[activeId,data]);
-  useEffect(() => {
-    if (ownerId && !isLoading && !attemptedInitialSync.current) {
-      attemptedInitialSync.current = true;
-      void syncWhatsApp();
-    }
-  }, [data.length, isLoading, ownerId, syncWhatsApp]);
   return { data, active: data.find((item) => item.id === activeId) ?? data[0], setActiveId, loading:isLoading, mutate, syncing, syncStatus, syncWhatsApp };
 }

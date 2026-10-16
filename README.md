@@ -85,7 +85,7 @@ O Inbox possui sincronização protegida do histórico retido pela Uazapi. A pri
 4. Aplique as migrations no Supabase antes do primeiro acesso.
 5. Faça o deploy. Pushes na branch `main` publicam automaticamente.
 
-Os cron jobs têm dois disparadores independentes. A Vercel mantém `/api/cron/daily` como contingência e envia `Authorization: Bearer $CRON_SECRET`. O Supabase Cron é o executor principal: follow-ups a cada 5 minutos, reativação e score a cada hora e atualização da JD AI diariamente. O token bruto do Supabase fica somente no Vault; a Vercel recebe apenas `SUPABASE_CRON_SECRET_HASH` para validar as chamadas. As execuções usam bloqueio transacional e janela mínima por rotina para impedir envios duplicados, e seus resultados ficam em `CronLog`/`ErrorLog` para auditoria administrativa.
+Os cron jobs têm dois disparadores independentes. A Vercel mantém `/api/cron/daily` como contingência e envia `Authorization: Bearer $CRON_SECRET`. O Supabase Cron é o executor principal: follow-ups e reconciliação do WhatsApp a cada 5 minutos, reativação e score a cada hora e atualização da JD AI diariamente. O token bruto do Supabase fica somente no Vault; a Vercel recebe apenas `SUPABASE_CRON_SECRET_HASH` para validar as chamadas. As execuções usam bloqueio transacional e janela mínima por rotina para impedir envios ou importações duplicadas, e seus resultados ficam em `CronLog`/`ErrorLog` para auditoria administrativa.
 
 A infraestrutura do Supabase Cron é versionada em `supabase/migrations/`. Depois de aplicar a migration, confirme que `pg_cron`, `pg_net` e o segredo `crm_automation_cron_secret` estão configurados. Nunca grave o token bruto em `.env`, código ou migration.
 

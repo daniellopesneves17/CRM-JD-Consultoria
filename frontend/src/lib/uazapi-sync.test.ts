@@ -10,6 +10,7 @@ import {
   uazapiMessageDate,
   uazapiMessageSender,
   uazapiMessageType,
+  uazapiPageReachedCutoff,
   uazapiPhone,
 } from "./uazapi-sync";
 
@@ -45,4 +46,10 @@ test("fingerprint evita duplicar a mesma mensagem no mesmo minuto", () => {
   const first = uazapiFingerprint("LEAD", "Olá", new Date("2026-10-06T12:00:05Z"));
   const second = uazapiFingerprint("LEAD", "Olá", new Date("2026-10-06T12:00:50Z"));
   assert.equal(first, second);
+});
+
+test("reconciliação encerra a paginação ao alcançar a janela já sincronizada", () => {
+  const since = new Date("2026-10-16T18:00:00Z");
+  assert.equal(uazapiPageReachedCutoff([{ messageTimestamp: new Date("2026-10-16T18:05:00Z").getTime() }], since), false);
+  assert.equal(uazapiPageReachedCutoff([{ messageTimestamp: new Date("2026-10-16T17:59:00Z").getTime() }], since), true);
 });
