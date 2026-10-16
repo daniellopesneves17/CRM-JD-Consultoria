@@ -1,6 +1,13 @@
 // Cliente da Uazapi v2 para presença, texto e mídia. Token permanece somente no servidor.
 export type UazapiConfig = { baseUrl: string; token: string };
 
+export function resolveUazapiConfig(user?: { email?: string | null; uazapiBaseUrl?: string | null; uazapiToken?: string | null }): UazapiConfig | undefined {
+  if (user?.uazapiBaseUrl && user.uazapiToken) return { baseUrl: user.uazapiBaseUrl, token: user.uazapiToken };
+  const ownerEmail = process.env.UAZAPI_OWNER_EMAIL?.trim().toLowerCase();
+  if (!user?.email || !ownerEmail || user.email.trim().toLowerCase() !== ownerEmail) return undefined;
+  try { return configFromEnv(); } catch { return undefined; }
+}
+
 const configFromEnv = (): UazapiConfig => {
   const value = process.env.UAZAPI_BASE_URL?.replace(/\/$/, "");
   if (!value) throw new Error("UAZAPI_BASE_URL não configurada.");

@@ -10,7 +10,7 @@ import {
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { z } from "zod";
 import { listAutomationsForActor, setAutomationActiveForActor } from "@/lib/automation-access";
-import { executeAutomationForUser } from "@/lib/automation-execution";
+import { executeAutomationForActor } from "@/lib/automation-execution";
 import { prisma } from "@/lib/prisma";
 import { normalizePhone, sendText } from "@/services/uazapi";
 
@@ -137,7 +137,7 @@ export const JD_AI_CRM_TOOLS: FunctionTool[] = [
   {
     type: "function",
     name: "crm_salvar_automacao",
-    description: "Ativa ou pausa automações no CRM do usuário atual. Administradores também podem criar e editar regras globais. Ativar exige confirmação explícita.",
+    description: "Ativa ou pausa automações no CRM do usuário atual. Administradores também podem criar e editar regras globais e suas ordens são executadas imediatamente; corretores precisam confirmar ativações.",
     strict: false,
     parameters: {
       type: "object",
@@ -158,13 +158,13 @@ export const JD_AI_CRM_TOOLS: FunctionTool[] = [
   {
     type: "function",
     name: "crm_executar_automacao",
-    description: "Executa agora uma automação ativa somente sobre a carteira do corretor autenticado. Pode enviar mensagens ou alterar leads e sempre exige que a mensagem atual comece com CONFIRMAR.",
+    description: "Executa uma automação agora. Para ADMIN, sem usuario_id executa em todos os CRMs elegíveis e com usuario_id executa naquele CRM, sem confirmação adicional. Corretores executam apenas a própria carteira e precisam começar a mensagem com CONFIRMAR.",
     strict: true,
     parameters: {
       type: "object",
       properties: {
         id: { type: "string" },
-        limite: { type: "integer", minimum: 1, maximum: 20 },
+        limite: { type: "integer", minimum: 1, maximum: 50 },
         usuario_id: nullableString,
       },
       required: ["id", "limite", "usuario_id"],
@@ -190,7 +190,7 @@ export const JD_AI_CRM_TOOLS: FunctionTool[] = [
   {
     type: "function",
     name: "crm_atualizar_usuario",
-    description: "Atualiza cadastro, papel e acesso de um usuário. Exclusivo para administradores; mudanças de papel ou acesso exigem confirmação explícita.",
+    description: "Atualiza cadastro, papel e acesso de um usuário. Exclusivo para administradores e executa imediatamente a ordem autenticada do ADMIN.",
     strict: false,
     parameters: {
       type: "object",
@@ -210,7 +210,7 @@ export const JD_AI_CRM_TOOLS: FunctionTool[] = [
   {
     type: "function",
     name: "crm_enviar_whatsapp",
-    description: "Envia uma mensagem real pelo WhatsApp e a registra na conversa. Exige que a mensagem atual do usuário comece com CONFIRMAR.",
+    description: "Envia uma mensagem real pelo WhatsApp e a registra na conversa. Para ADMIN executa imediatamente; corretores precisam começar a mensagem com CONFIRMAR.",
     strict: true,
     parameters: {
       type: "object",
@@ -222,7 +222,7 @@ export const JD_AI_CRM_TOOLS: FunctionTool[] = [
   {
     type: "function",
     name: "crm_excluir",
-    description: "Exclui um registro real do CRM. Exige que a mensagem atual do usuário comece com CONFIRMAR.",
+    description: "Exclui um registro real do CRM. Para ADMIN executa imediatamente; corretores precisam começar a mensagem com CONFIRMAR.",
     strict: true,
     parameters: {
       type: "object",
@@ -240,11 +240,16 @@ export function hasExplicitJdAiConfirmation(message: string) {
   return /^\s*CONFIRMAR(?:\b|\s|:|-)/i.test(message);
 }
 
+export function requiresExplicitJdAiConfirmation(actor: JdAiActor) {
+  return actor.role !== Role.ADMIN;
+}
+
 function assertAdmin(actor: JdAiActor) {
   if (actor.role !== Role.ADMIN) throw new Error("Esta ação é exclusiva para administradores.");
 }
 
 function assertConfirmed(context: ToolContext, summary: string) {
+  if (!requiresExplicitJdAiConfirmation(context.actor)) return;
   if (!hasExplicitJdAiConfirmation(context.userMessage)) {
     throw new Error(`CONFIRMACAO_NECESSARIA: ${summary}. Peça ao usuário para revisar os dados e responder começando com \"CONFIRMAR\".`);
   }
@@ -457,13 +462,13 @@ async function saveAutomation(raw: unknown, context: ToolContext) {
 async function runAutomation(raw: unknown, context: ToolContext) {
   const args = z.object({
     id: z.string().min(1),
-    limite: z.number().int().min(1).max(20),
+    limite: z.number().int().min(1).max(50),
     usuario_id: z.string().nullable(),
   }).parse(raw);
   assertConfirmed(context, `executar a automação ${args.id}`);
-  const userId = context.actor.role === Role.ADMIN && args.usuario_id ? args.usuario_id : context.actor.id;
-  const result = await executeAutomationForUser(args.id, userId, args.limite);
-  await audit(context.actor, `JD AI executou a automação ${args.id} no CRM do usuário ${userId}: ${JSON.stringify(result)}.`);
+  const result = await executeAutomationForActor(args.id, context.actor, args.limite, args.usuario_id);
+  const scope = context.actor.role === Role.ADMIN ? args.usuario_id ?? "todos_os_crms" : context.actor.id;
+  await audit(context.actor, `JD AI executou a automação ${args.id} no escopo ${scope}: ${JSON.stringify(result)}.`);
   return result;
 }
 

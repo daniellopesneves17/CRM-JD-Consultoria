@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Role } from "@prisma/client";
-import { executeJdAiCrmTool, hasExplicitJdAiConfirmation, JD_AI_CRM_TOOLS } from "@/services/ai/jd-ai-tools";
+import { executeJdAiCrmTool, hasExplicitJdAiConfirmation, JD_AI_CRM_TOOLS, requiresExplicitJdAiConfirmation } from "@/services/ai/jd-ai-tools";
 
 test("exige confirmação no início da mensagem para ações críticas", () => {
   assert.equal(hasExplicitJdAiConfirmation("CONFIRMAR: enviar a mensagem"), true);
@@ -28,4 +28,9 @@ test("execução manual de automação exige confirmação explícita", async ()
   )) as { ok: boolean; error: string };
   assert.equal(output.ok, false);
   assert.match(output.error, /CONFIRMAR/);
+});
+
+test("ordem do ADMIN não exige confirmação explícita", () => {
+  assert.equal(requiresExplicitJdAiConfirmation({ id: "admin-teste", role: Role.ADMIN }), false);
+  assert.equal(requiresExplicitJdAiConfirmation({ id: "corretor-teste", role: Role.CORRETOR }), true);
 });

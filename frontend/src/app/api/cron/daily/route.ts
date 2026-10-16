@@ -11,7 +11,8 @@ export const maxDuration = 300;
 export async function GET(request: Request) {
   const denied = authorizeCron(request);
   if (denied) return denied;
-  const cron = await startCron("daily");
+  const cron = await startCron("daily", 20 * 60 * 60_000);
+  if (!cron) return NextResponse.json({ ok: true, skipped: true, reason: "Execução diária já iniciada." }, { status: 202 });
   try {
     const jobs = await Promise.allSettled([runFollowUp(request), runReactivation(request), runScoreUpdate(request), runJdAiUpdate(request)]);
     const results = await Promise.all(jobs.map(async (job, index) => ({
@@ -28,3 +29,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Falha na rotina diária." }, { status: 500 });
   }
 }
+
+export const POST = GET;

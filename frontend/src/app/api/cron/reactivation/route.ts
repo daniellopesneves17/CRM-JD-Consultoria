@@ -8,7 +8,8 @@ import { authorizeCron, failCron, finishCron, startCron } from "@/lib/cron";
 export async function GET(request: Request) {
   const denied = authorizeCron(request);
   if (denied) return denied;
-  const cron = await startCron("reactivation");
+  const cron = await startCron("reactivation", 50 * 60_000);
+  if (!cron) return NextResponse.json({ ok: true, skipped: true, reason: "Execução recente ou em andamento." }, { status: 202 });
   try {
     const rule = await prisma.automationRule.findUnique({ where: { id: "base-reactivation" } });
     if (!rule) {
@@ -28,3 +29,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Falha ao agendar reativações." }, { status: 500 });
   }
 }
+
+export const POST = GET;

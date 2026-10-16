@@ -7,7 +7,8 @@ export const maxDuration = 180;
 export async function GET(request: Request) {
   const denied = authorizeCron(request);
   if (denied) return denied;
-  const cron = await startCron("jd-ai-update");
+  const cron = await startCron("jd-ai-update", 20 * 60 * 60_000);
+  if (!cron) return NextResponse.json({ ok: true, skipped: true, reason: "Execução recente ou em andamento." }, { status: 202 });
   try {
     const briefing = await refreshJdAiBriefing();
     await finishCron(cron.id, 1, 0, briefing.researchDate);
@@ -17,3 +18,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Falha ao atualizar o radar diário da JD AI." }, { status: 500 });
   }
 }
+
+export const POST = GET;

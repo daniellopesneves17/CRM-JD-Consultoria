@@ -10,7 +10,8 @@ export const maxDuration = 300;
 export async function GET(request: Request) {
   const denied = authorizeCron(request);
   if (denied) return denied;
-  const cron = await startCron("score-update");
+  const cron = await startCron("score-update", 50 * 60_000);
+  if (!cron) return NextResponse.json({ ok: true, skipped: true, reason: "Execução recente ou em andamento." }, { status: 202 });
   let updated = 0;
   try {
     const rule = await prisma.automationRule.findUnique({ where: { id: "automatic-score" } });
@@ -31,3 +32,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Falha ao atualizar scores." }, { status: 500 });
   }
 }
+
+export const POST = GET;

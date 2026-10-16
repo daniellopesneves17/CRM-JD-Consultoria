@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import useSWR from "swr";
-import { LoaderCircle, Plus, Zap } from "lucide-react";
+import { LoaderCircle, Play, Plus, Zap } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -29,6 +29,7 @@ const fetcher = async (url: string) => {
 export default function AutomationsPage() {
   const [creating, setCreating] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [executingId, setExecutingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { data, error, mutate } = useSWR<AutomationResponse>("/api/automations", fetcher);
   const rules = data?.automations ?? [];
@@ -50,6 +51,27 @@ export default function AutomationsPage() {
       setNotice(caught instanceof Error ? caught.message : "Não foi possível alterar a automação.");
     } finally {
       setSavingId(null);
+    }
+  }
+
+  async function execute(rule: Rule) {
+    setExecutingId(rule.id);
+    setNotice(null);
+    try {
+      const response = await fetch(`/api/automations/${rule.id}/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const body = await response.json().catch(() => null) as { error?: string; result?: { sent?: number; updated?: number; scheduled?: number } } | null;
+      if (!response.ok) throw new Error(body?.error ?? "Não foi possível executar a automação.");
+      const processed = body?.result?.sent ?? body?.result?.updated ?? body?.result?.scheduled ?? 0;
+      setNotice(`${rule.name} executada agora${processed ? `: ${processed} item(ns) processado(s)` : ". Nenhum item elegível neste momento."}`);
+      await mutate();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "Não foi possível executar a automação.");
+    } finally {
+      setExecutingId(null);
     }
   }
 
@@ -105,6 +127,17 @@ export default function AutomationsPage() {
           {!data.canCreate && <p className="mt-1 text-[11px] text-slate-400">{rule.customized ? "Configuração própria deste CRM" : "Usando o padrão da operação"}</p>}
         </div>
         <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={executingId === rule.id || (!data.canCreate && !rule.active)}
+            onClick={() => void execute(rule)}
+            title={!data.canCreate && !rule.active ? "Ative a automação antes de executar" : "Executar automação agora"}
+          >
+            {executingId === rule.id ? <LoaderCircle className="animate-spin" size={14}/> : <Play size={14}/>}
+            <span className="hidden lg:inline">Executar agora</span>
+          </Button>
           <span className={`hidden rounded px-2 py-1 text-xs font-semibold sm:inline ${rule.active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{rule.active ? "Ativa" : "Pausada"}</span>
           <button
             type="button"

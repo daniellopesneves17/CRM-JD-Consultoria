@@ -5,27 +5,28 @@ import { enabledAutomationUsers, isAutomationActiveForUser } from "@/lib/automat
 import { executeAutomationForUser } from "@/lib/automation-execution";
 import { authorizeCron, failCron, finishCron, startCron } from "@/lib/cron";
 import { suggestReactivationStrategy } from "@/services/ai";
-import { sendText, type UazapiConfig } from "@/services/uazapi";
+import { resolveUazapiConfig, sendText } from "@/services/uazapi";
 
 export const maxDuration = 300;
 
 export async function GET(request: Request) {
   const denied = authorizeCron(request);
   if (denied) return denied;
-  const cron = await startCron("follow-up");
+  const cron = await startCron("follow-up", 4 * 60_000);
+  if (!cron) return NextResponse.json({ ok: true, skipped: true, reason: "Execução recente ou em andamento." }, { status: 202 });
   let sent = 0;
   try {
     const dueReactivations = await prisma.task.findMany({
       where: { type: "REATIVACAO", done: false, dueAt: { lte: new Date() } },
-      include: { lead: { include: { assignedTo: { select: { uazapiBaseUrl: true, uazapiToken: true } }, conversations: { orderBy: { updatedAt: "desc" }, take: 1, include: { messages: { orderBy: { sentAt: "desc" }, take: 8 } } } } } },
+      include: { lead: { include: { assignedTo: { select: { email: true, uazapiBaseUrl: true, uazapiToken: true } }, conversations: { orderBy: { updatedAt: "desc" }, take: 1, include: { messages: { orderBy: { sentAt: "desc" }, take: 8 } } } } } },
       take: 15
     });
     for (const task of dueReactivations) {
       if (!(await isAutomationActiveForUser("base-reactivation", task.lead.userId))) continue;
       const messages = task.lead.conversations[0]?.messages ?? [];
       const owner = task.lead.assignedTo;
-      if (!owner?.uazapiToken || !owner.uazapiBaseUrl) continue;
-      const config: UazapiConfig = { baseUrl: owner.uazapiBaseUrl, token: owner.uazapiToken };
+      const config = resolveUazapiConfig(owner ?? undefined);
+      if (!config) continue;
       const strategy = await suggestReactivationStrategy({ leadProfile: { name: task.lead.name, stage: task.lead.stage, lostReason: task.lead.lostReason ?? undefined, notes: task.lead.notes ?? undefined }, lastMessages: messages.map((item) => ({ sender: item.sender, content: item.content })) });
       await sendText(task.lead.phone, strategy.message, config);
       await prisma.$transaction([
@@ -52,3 +53,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Falha no follow-up automático." }, { status: 500 });
   }
 }
+
+export const POST = GET;
