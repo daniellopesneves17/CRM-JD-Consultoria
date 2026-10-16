@@ -8,7 +8,7 @@ import { allowRequest } from "@/lib/rate-limit";
 import { shouldUseAutomaticPreAttendance, uazapiChatAvatar, uazapiChatName, uazapiMediaUrl, uazapiMessageContent, uazapiMessageType } from "@/lib/uazapi-sync";
 import { analyzeSentiment, generatePreAttendance } from "@/services/ai";
 import { isAiConfigured } from "@/services/ai/client";
-import { downloadUazapiMessage, normalizePhone, sendText, type UazapiConfig } from "@/services/uazapi";
+import { downloadUazapiMessage, normalizePhone, resolveUazapiConfig, sendText } from "@/services/uazapi";
 import { transcribeAudio } from "@/services/whisper";
 
 const payloadSchema = z.object({
@@ -22,12 +22,12 @@ const asString = (value: unknown) => typeof value === "string" ? value : undefin
 
 async function configuredOwner(token?: string) {
   if (token) {
-    const linked = await prisma.user.findFirst({ where: { uazapiToken: token }, select: { id: true, active: true, crmEnabled: true, uazapiBaseUrl: true, uazapiToken: true } });
+    const linked = await prisma.user.findFirst({ where: { uazapiToken: token }, select: { id: true, email: true, active: true, crmEnabled: true, uazapiBaseUrl: true, uazapiToken: true } });
     if (linked) return linked;
   }
   const email = process.env.UAZAPI_OWNER_EMAIL?.trim().toLowerCase();
   if (!email) return null;
-  const owner = await prisma.user.findUnique({ where: { email }, select: { id: true, active: true, crmEnabled: true, uazapiBaseUrl: true, uazapiToken: true } });
+  const owner = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, active: true, crmEnabled: true, uazapiBaseUrl: true, uazapiToken: true } });
   if (!owner?.active || !owner.crmEnabled) throw new Error(`Responsável da Uazapi indisponível: ${email}`);
   return owner;
 }
@@ -48,10 +48,10 @@ async function processReceived(message: Record<string, unknown>, instanceToken?:
 
   const owner = await configuredOwner(instanceToken);
   if (!owner) throw new Error("Responsável da Uazapi não configurado.");
-  const config: UazapiConfig | undefined = owner.uazapiToken && owner.uazapiBaseUrl ? { baseUrl: owner.uazapiBaseUrl, token: owner.uazapiToken } : undefined;
+  const config = resolveUazapiConfig(owner);
   const ownerData = owner ? { userId: owner.id } : {};
   const lead = await prisma.lead.upsert({
-    where: { phone },
+    where: { userId_phone: { userId: owner.id, phone } },
     update: { name: contactName, lastActivityAt: new Date(), ...(avatarUrl ? { avatarUrl } : {}), ...ownerData },
     create: { name: displayName, phone, avatarUrl, stage: "NOVO", source: "WHATSAPP", lastActivityAt: new Date(), ...ownerData },
   });

@@ -33,7 +33,7 @@ export async function GET(request: Request) {
         const since = latest._max.sentAt
           ? new Date(latest._max.sentAt.getTime() - 15 * 60_000)
           : new Date(Date.now() - 24 * 60 * 60_000);
-        const result = await syncUazapiHistory(owner, { includeChats: true, maxPages: 3, pageSize: 1000, since });
+        const result = await syncUazapiHistory(owner, { includeDirectory: false, maxPages: 3, pageSize: 1000, since });
         imported += result.imported;
         results.push({ ok: true, ...result });
       } catch (error) {

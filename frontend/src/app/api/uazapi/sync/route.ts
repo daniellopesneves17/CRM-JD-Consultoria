@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Nenhuma conexão de WhatsApp está configurada para este perfil." }, { status: 403 });
     }
     if (!resolveUazapiConfig(owner)) return NextResponse.json({ error: "Nenhuma conexão de WhatsApp está configurada para este perfil." }, { status: 403 });
-    const result = await syncUazapiHistory(owner, { includeChats: true, maxPages: 10, pageSize: 1000 });
+    const result = await syncUazapiHistory(owner, { includeDirectory: true, directoryMaxPages: 50, maxPages: 10, pageSize: 1000 });
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     return apiError(error, "Não foi possível sincronizar o histórico do WhatsApp.");

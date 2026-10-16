@@ -23,6 +23,18 @@ export function uazapiPhone(chat: UazapiRecord | undefined, chatId: string) {
   return "";
 }
 
+export function uazapiContactPhone(contact: UazapiRecord) {
+  const jid = stringValue(contact.jid) ?? stringValue(contact.id) ?? "";
+  return uazapiPhone(contact, jid);
+}
+
+export function uazapiContactName(contact: UazapiRecord, phone: string) {
+  return stringValue(contact.contact_name)
+    ?? stringValue(contact.contact_FirstName)
+    ?? stringValue(contact.name)
+    ?? `WhatsApp ${phone.slice(-4)}`;
+}
+
 export function uazapiMessageDate(value: unknown) {
   const timestamp = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(timestamp) || timestamp <= 0) return new Date();

@@ -24,7 +24,10 @@ export async function GET(request: Request) {
   if ("response" in access) return access.response;
   const values = new URL(request.url).searchParams.getAll("phone").slice(0, 50);
   const phones = values.flatMap((value) => { try { return [normalizeBrazilPhone(value)]; } catch { return []; } });
-  const existing = phones.length ? await prisma.lead.findMany({ where: { phone: { in: phones } }, select: { phone: true } }) : [];
+  const existing = phones.length ? await prisma.lead.findMany({
+    where: { userId: access.session.user.id, phone: { in: phones } },
+    select: { phone: true },
+  }) : [];
   return NextResponse.json({ existing: existing.map((item) => item.phone) });
 }
 
@@ -48,7 +51,10 @@ export async function POST(request: Request) {
     });
     if (!prepared.length) return NextResponse.json({ created: 0, skipped: errors.length, errors });
 
-    const existing = await prisma.lead.findMany({ where: { phone: { in: prepared.map((item) => item.phone) } }, select: { phone: true } });
+    const existing = await prisma.lead.findMany({
+      where: { userId: access.session.user.id, phone: { in: prepared.map((item) => item.phone) } },
+      select: { phone: true },
+    });
     const existingPhones = new Set(existing.map((item) => item.phone));
     const creatable = prepared.filter((item) => {
       if (!existingPhones.has(item.phone)) return true;
@@ -59,7 +65,10 @@ export async function POST(request: Request) {
 
     await prisma.$transaction(async (tx) => {
       await tx.lead.createMany({ data: creatable.map((item) => ({ name: item.name, phone: item.phone, currentOperator: item.operator || null, livesCount: item.livesCount, estimatedValue: item.estimatedValue, stage: item.stage, notes: item.notes, source: "IMPORTACAO" as const, userId: access.session.user.id, lastActivityAt: new Date() })) });
-      const createdLeads = await tx.lead.findMany({ where: { phone: { in: creatable.map((item) => item.phone) } }, select: { id: true, phone: true, name: true, livesCount: true, currentOperator: true, stage: true, estimatedValue: true } });
+      const createdLeads = await tx.lead.findMany({
+        where: { userId: access.session.user.id, phone: { in: creatable.map((item) => item.phone) } },
+        select: { id: true, phone: true, name: true, livesCount: true, currentOperator: true, stage: true, estimatedValue: true },
+      });
       const accepted = createdLeads.filter((lead) => lead.stage === "FECHADO" && Number(lead.estimatedValue ?? 0) > 0);
       if (accepted.length) await tx.proposal.createMany({ data: accepted.map((lead) => ({ leadId: lead.id, operator: lead.currentOperator ?? "Não informada", plan: "Importado", coverage: "A confirmar", monthlyValue: lead.estimatedValue!, lives: Array.from({ length: lead.livesCount }, (_, index) => ({ name: `Vida ${index + 1}` })), status: "ACEITA" as const, acceptedAt: new Date() })) });
     });

@@ -1,7 +1,10 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   uazapiChatAvatar,
   uazapiChatName,
+  uazapiContactName,
+  uazapiContactPhone,
   uazapiExternalId,
   uazapiFingerprint,
   uazapiMediaUrl,
@@ -12,7 +15,7 @@ import {
   uazapiPageReachedCutoff,
   uazapiPhone,
 } from "@/lib/uazapi-sync";
-import { findUazapiChats, findUazapiMessages, resolveUazapiConfig, type UazapiRecord } from "@/services/uazapi";
+import { findUazapiChats, findUazapiContacts, findUazapiMessages, resolveUazapiConfig, type UazapiRecord } from "@/services/uazapi";
 
 export type UazapiSyncOwner = {
   id: string;
@@ -25,11 +28,177 @@ export type UazapiSyncOwner = {
 };
 
 export type UazapiHistorySyncOptions = {
-  includeChats?: boolean;
+  includeDirectory?: boolean;
+  directoryMaxPages?: number;
   maxPages?: number;
   pageSize?: number;
   since?: Date;
 };
+
+type DirectoryEntry = {
+  phone: string;
+  name: string;
+  avatarUrl?: string;
+  chatId: string;
+  lastActivityAt?: Date;
+};
+
+const FALLBACK_NAME = /^WhatsApp \d{4}$/;
+
+function chatDirectoryEntry(chat: UazapiRecord): DirectoryEntry | null {
+  const chatId = typeof chat.wa_chatid === "string" ? chat.wa_chatid : typeof chat.wa_chatlid === "string" ? chat.wa_chatlid : "";
+  if (!chatId || chat.wa_isGroup === true || chatId.includes("@g.us") || chatId.includes("@newsletter")) return null;
+  const phone = uazapiPhone(chat, chatId);
+  if (phone.length < 10) return null;
+  const timestamp = Number(chat.wa_lastMsgTimestamp);
+  return {
+    phone,
+    name: uazapiChatName(chat, {}, phone),
+    avatarUrl: uazapiChatAvatar(chat),
+    chatId: chatId.endsWith("@lid") ? `${phone}@s.whatsapp.net` : chatId,
+    lastActivityAt: Number.isFinite(timestamp) && timestamp > 0 ? uazapiMessageDate(timestamp) : undefined,
+  };
+}
+
+function contactDirectoryEntry(contact: UazapiRecord): DirectoryEntry | null {
+  const phone = uazapiContactPhone(contact);
+  if (phone.length < 10) return null;
+  return { phone, name: uazapiContactName(contact, phone), chatId: `${phone}@s.whatsapp.net` };
+}
+
+async function upsertDirectoryBatch(ownerId: string, entries: DirectoryEntry[]) {
+  const unique = [...new Map(entries.map((entry) => [entry.phone, entry])).values()];
+  if (!unique.length) return { contacts: 0, created: 0, conversations: 0 };
+
+  const before = await prisma.lead.findMany({
+    where: { userId: ownerId, phone: { in: unique.map((entry) => entry.phone) } },
+    select: { id: true, phone: true, name: true },
+  });
+  const existingPhones = new Set(before.map((lead) => lead.phone));
+  const missingLeads = unique.filter((entry) => !existingPhones.has(entry.phone)).map((entry) => ({
+      name: entry.name,
+      phone: entry.phone,
+      avatarUrl: entry.avatarUrl,
+      source: "WHATSAPP" as const,
+      stage: "NOVO" as const,
+      userId: ownerId,
+      lastActivityAt: entry.lastActivityAt,
+    }));
+  if (missingLeads.length) await prisma.lead.createMany({ data: missingLeads, skipDuplicates: true });
+
+  const values = unique.map((entry) => Prisma.sql`(${entry.phone}, ${entry.name}, ${entry.avatarUrl ?? null}, ${entry.lastActivityAt?.toISOString() ?? null})`);
+  await prisma.$executeRaw(Prisma.sql`
+    update crm."Lead" as lead
+       set "name" = case when lead."name" ~ ${FALLBACK_NAME.source} then data.name else lead."name" end,
+           "avatarUrl" = coalesce(data.avatar_url, lead."avatarUrl"),
+           "lastActivityAt" = case
+             when data.last_activity_at is null then lead."lastActivityAt"
+             when lead."lastActivityAt" is null then data.last_activity_at::timestamptz
+             else greatest(lead."lastActivityAt", data.last_activity_at::timestamptz)
+           end,
+           "updatedAt" = current_timestamp
+      from (values ${Prisma.join(values)}) as data(phone, name, avatar_url, last_activity_at)
+     where lead."userId" = ${ownerId}
+       and lead."phone" = data.phone
+  `);
+
+  const leads = await prisma.lead.findMany({
+    where: { userId: ownerId, phone: { in: unique.map((entry) => entry.phone) } },
+    select: { id: true, phone: true },
+  });
+  const leadByPhone = new Map(leads.map((lead) => [lead.phone, lead]));
+  const conversations = await prisma.conversation.findMany({
+    where: { leadId: { in: leads.map((lead) => lead.id) }, status: { not: "ENCERRADO" } },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, leadId: true },
+  });
+  const conversationByLead = new Map<string, string>();
+  for (const conversation of conversations) if (!conversationByLead.has(conversation.leadId)) conversationByLead.set(conversation.leadId, conversation.id);
+  const missing = unique.flatMap((entry) => {
+    const lead = leadByPhone.get(entry.phone);
+    if (!lead || conversationByLead.has(lead.id)) return [];
+    return [{ leadId: lead.id, uazapiChatId: entry.chatId, status: "HUMANO" as const, updatedAt: entry.lastActivityAt ?? new Date(0) }];
+  });
+  if (missing.length) await prisma.conversation.createMany({ data: missing });
+
+  const conversationUpdates = unique.flatMap((entry) => {
+    const lead = leadByPhone.get(entry.phone);
+    const conversationId = lead ? conversationByLead.get(lead.id) : undefined;
+    if (!conversationId) return [];
+    return [Prisma.sql`(${conversationId}, ${entry.chatId}, ${entry.lastActivityAt?.toISOString() ?? null})`];
+  });
+  if (conversationUpdates.length) {
+    await prisma.$executeRaw(Prisma.sql`
+      update crm."Conversation" as conversation
+         set "uazapiChatId" = coalesce(data.chat_id, conversation."uazapiChatId"),
+             "updatedAt" = case
+               when data.last_activity_at is null then conversation."updatedAt"
+               else greatest(conversation."updatedAt", data.last_activity_at::timestamptz)
+             end
+        from (values ${Prisma.join(conversationUpdates)}) as data(id, chat_id, last_activity_at)
+       where conversation.id = data.id
+    `);
+  }
+  return { contacts: unique.length, created: missingLeads.length, conversations: missing.length };
+}
+
+export async function syncUazapiDirectory(owner: UazapiSyncOwner, options: { pageSize?: number; maxPages?: number } = {}) {
+  if (!owner.active || !owner.crmEnabled) throw new Error(`CRM de ${owner.name} está desabilitado.`);
+  const config = resolveUazapiConfig(owner);
+  if (!config) throw new Error(`Nenhuma conexão de WhatsApp está configurada para ${owner.name}.`);
+  const pageSize = Math.min(1000, Math.max(50, options.pageSize ?? 1000));
+  const maxPages = Math.min(100, Math.max(1, options.maxPages ?? 50));
+  const directory = new Map<string, DirectoryEntry>();
+  let contactOffset = 0;
+  let chatOffset = 0;
+  let contactPages = 0;
+  let chatPages = 0;
+  let contactTotal: number | undefined;
+  let chatTotal: number | undefined;
+  let contactsTruncated = false;
+  let chatsTruncated = false;
+
+  for (; contactPages < maxPages; contactPages += 1) {
+    const page = await findUazapiContacts(contactOffset, pageSize, config);
+    contactTotal = page.totalRecords ?? contactTotal;
+    for (const contact of page.contacts) {
+      const entry = contactDirectoryEntry(contact);
+      if (entry) directory.set(entry.phone, entry);
+    }
+    if (!page.hasMore || !page.contacts.length) { contactPages += 1; break; }
+    contactOffset = page.nextOffset;
+    if (contactPages === maxPages - 1) contactsTruncated = true;
+  }
+
+  for (; chatPages < maxPages; chatPages += 1) {
+    const page = await findUazapiChats(chatOffset, pageSize, config);
+    chatTotal = page.totalRecords ?? chatTotal;
+    for (const chat of page.chats) {
+      const entry = chatDirectoryEntry(chat);
+      if (!entry) continue;
+      const current = directory.get(entry.phone);
+      directory.set(entry.phone, {
+        ...current,
+        ...entry,
+        name: FALLBACK_NAME.test(entry.name) && current ? current.name : entry.name,
+        avatarUrl: entry.avatarUrl ?? current?.avatarUrl,
+      });
+    }
+    if (!page.hasMore || !page.chats.length) { chatPages += 1; break; }
+    chatOffset = page.nextOffset;
+    if (chatPages === maxPages - 1) chatsTruncated = true;
+  }
+
+  const entries = [...directory.values()];
+  const totals = { contacts: 0, created: 0, conversations: 0 };
+  for (let index = 0; index < entries.length; index += 1000) {
+    const result = await upsertDirectoryBatch(owner.id, entries.slice(index, index + 1000));
+    totals.contacts += result.contacts;
+    totals.created += result.created;
+    totals.conversations += result.conversations;
+  }
+  return { ownerId: owner.id, contactPages, chatPages, contactTotal, chatTotal, contactsTruncated, chatsTruncated, ...totals };
+}
 
 function activityExternalId(detail: string) {
   try {
@@ -54,15 +223,15 @@ async function syncChat(ownerId: string, chatId: string, chat: UazapiRecord | un
   const avatarUrl = uazapiChatAvatar(chat);
   const displayName = uazapiChatName(chat, sorted.at(-1) ?? {}, phone);
   const lead = await prisma.lead.upsert({
-    where: { phone },
-    update: { name: displayName, userId: ownerId, ...(avatarUrl ? { avatarUrl } : {}) },
+    where: { userId_phone: { userId: ownerId, phone } },
+    update: { ...(FALLBACK_NAME.test(displayName) ? {} : { name: displayName }), ...(avatarUrl ? { avatarUrl } : {}) },
     create: { name: displayName, phone, source: "WHATSAPP", stage: "NOVO", userId: ownerId, lastActivityAt, avatarUrl },
   });
   if (!lead.lastActivityAt || lead.lastActivityAt < lastActivityAt) {
     await prisma.lead.update({ where: { id: lead.id }, data: { lastActivityAt } });
   }
 
-  let conversation = await prisma.conversation.findFirst({ where: { uazapiChatId: chatId } });
+  let conversation = await prisma.conversation.findFirst({ where: { uazapiChatId: chatId, lead: { userId: ownerId } } });
   if (!conversation) {
     conversation = await prisma.conversation.findFirst({
       where: { leadId: lead.id, status: { not: "ENCERRADO" } },
@@ -144,11 +313,9 @@ export async function syncUazapiHistory(owner: UazapiSyncOwner, options: UazapiH
   const config = resolveUazapiConfig(owner);
   if (!config) throw new Error(`Nenhuma conexão de WhatsApp está configurada para ${owner.name}.`);
 
-  const chats = options.includeChats === false ? [] : await findUazapiChats(config);
-  const chatsById = new Map<string, UazapiRecord>();
-  for (const chat of chats) {
-    for (const id of [chat.wa_chatid, chat.wa_chatlid]) if (typeof id === "string" && id) chatsById.set(id, chat);
-  }
+  const directory = options.includeDirectory === false
+    ? null
+    : await syncUazapiDirectory(owner, { pageSize: options.pageSize, maxPages: options.directoryMaxPages });
 
   const messages: UazapiRecord[] = [];
   const pageSize = Math.min(1000, Math.max(1, options.pageSize ?? 1000));
@@ -181,7 +348,7 @@ export async function syncUazapiHistory(owner: UazapiSyncOwner, options: UazapiH
   const totals = { chats: 0, imported: 0, skipped: 0 };
   const entries = [...groups.entries()];
   for (let index = 0; index < entries.length; index += 4) {
-    const batch = await Promise.all(entries.slice(index, index + 4).map(([chatId, items]) => syncChat(owner.id, chatId, chatsById.get(chatId), items)));
+    const batch = await Promise.all(entries.slice(index, index + 4).map(([chatId, items]) => syncChat(owner.id, chatId, undefined, items)));
     for (const result of batch) {
       totals.chats += result.chats;
       totals.imported += result.imported;
@@ -189,5 +356,5 @@ export async function syncUazapiHistory(owner: UazapiSyncOwner, options: UazapiH
     }
   }
 
-  return { ownerId: owner.id, fetched: relevantMessages.length, pages: pagesFetched, ...totals };
+  return { ownerId: owner.id, fetched: relevantMessages.length, pages: pagesFetched, directory, ...totals };
 }

@@ -121,7 +121,7 @@ model JdAiBriefing {
 model Lead {
   id              String         @id @default(cuid())
   name            String
-  phone           String         @unique
+  phone           String
   email           String?
   avatarUrl       String?
   cpf             String?
@@ -150,6 +150,8 @@ model Lead {
 
   @@index([stage, temperature, score])
   @@index([userId, lastActivityAt])
+  @@unique([userId, phone])
+  @@index([phone])
   @@index([stage, contractEndDate])
   @@index([createdAt])
 }

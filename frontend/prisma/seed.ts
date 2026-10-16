@@ -72,7 +72,7 @@ async function main() {
   if (process.env.SEED_DEMO_DATA !== "true") return;
   for (const [name, phone, stage, score, temperature, source] of demoLeads) {
     await prisma.lead.upsert({
-      where: { phone },
+      where: { userId_phone: { userId: admin.id, phone } },
       update: {},
       create: {
         name, phone, stage, score, temperature, source, userId: admin.id,

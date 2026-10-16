@@ -28,28 +28,48 @@ async function request(path: string, body: Record<string, unknown>, config?: Uaz
 
 export type UazapiRecord = Record<string, unknown>;
 
-export async function findUazapiChats(config?: UazapiConfig) {
+function paginatedRecords(result: UazapiRecord, key: string, offset: number, limit: number) {
+  const pagination = typeof result.pagination === "object" && result.pagination
+    ? result.pagination as UazapiRecord
+    : result;
+  const records = Array.isArray(result[key]) ? result[key] as UazapiRecord[] : [];
+  const totalRecords = typeof pagination.totalRecords === "number" ? pagination.totalRecords : undefined;
+  const nextOffset = typeof pagination.nextOffset === "number" ? pagination.nextOffset : offset + records.length;
+  return {
+    records,
+    hasMore: pagination.hasMore === true || (totalRecords != null && nextOffset < totalRecords),
+    nextOffset,
+    totalRecords,
+    limit,
+  };
+}
+
+export async function findUazapiChats(offset = 0, limit = 1000, config?: UazapiConfig) {
   const result = await request("/chat/find", {
     operator: "AND",
     sort: "-wa_lastMsgTimestamp",
-    limit: 2000,
-    offset: 0,
+    limit,
+    offset,
     compact: false,
     wa_isGroup: false,
-    wa_lastMsgTimestamp: ">0",
   }, config);
-  return Array.isArray(result.chats) ? result.chats as UazapiRecord[] : [];
+  const page = paginatedRecords(result, "chats", offset, limit);
+  return { chats: page.records, ...page };
+}
+
+export async function findUazapiContacts(offset = 0, limit = 1000, config?: UazapiConfig) {
+  const result = await request("/contacts/list", { limit, offset }, config);
+  const page = paginatedRecords(result, "contacts", offset, limit);
+  return { contacts: page.records, ...page };
 }
 
 export async function findUazapiMessages(offset = 0, limit = 1000, config?: UazapiConfig) {
   const result = await request("/message/find", { offset, limit }, config);
-  const pagination = typeof result.pagination === "object" && result.pagination
-    ? result.pagination as UazapiRecord
-    : result;
+  const page = paginatedRecords(result, "messages", offset, limit);
   return {
-    messages: Array.isArray(result.messages) ? result.messages as UazapiRecord[] : [],
-    hasMore: pagination.hasMore === true,
-    nextOffset: typeof pagination.nextOffset === "number" ? pagination.nextOffset : offset + limit,
+    messages: page.records,
+    hasMore: page.hasMore,
+    nextOffset: page.nextOffset,
   };
 }
 

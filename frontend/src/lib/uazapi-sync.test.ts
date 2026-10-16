@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   shouldUseAutomaticPreAttendance,
+  uazapiContactName,
+  uazapiContactPhone,
   uazapiChatAvatar,
   uazapiChatName,
   uazapiFingerprint,
@@ -20,6 +22,13 @@ test("normaliza contato, nome e data do histórico da Uazapi", () => {
   assert.equal(uazapiChatName(chat, {}, "5511999990000"), "Cliente Teste");
   assert.equal(uazapiChatAvatar(chat), "https://example.com/avatar.jpg");
   assert.equal(uazapiMessageDate(1_790_000_000_000).getTime(), 1_790_000_000_000);
+});
+
+test("normaliza contatos da agenda da Uazapi", () => {
+  const contact = { jid: "5522999990000@s.whatsapp.net", contact_name: "Contato da agenda" };
+  assert.equal(uazapiContactPhone(contact), "5522999990000");
+  assert.equal(uazapiContactName(contact, "5522999990000"), "Contato da agenda");
+  assert.equal(uazapiContactPhone({ jid: "123456789@lid" }), "");
 });
 
 test("diferencia vídeo de documento", () => {
