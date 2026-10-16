@@ -57,7 +57,10 @@ Configure `OPENROUTER_API_KEY` para usar a OpenRouter (prioridade) ou `OPENAI_AP
 | Score e análise | `OPENAI_DEEP_MODEL` | `o3` |
 | Fallback profundo | `OPENAI_DEEP_FALLBACK_MODEL` | `gpt-4o` |
 | Sentimento/intenção | `OPENAI_CHEAP_MODEL` | `gpt-4o-mini` |
+| Validação de nomes antes de automações | `OPENAI_IDENTITY_MODEL` | herda `OPENAI_DEEP_MODEL` |
 | Transcrição pela OpenRouter | `OPENROUTER_TRANSCRIPTION_MODEL` | `openai/whisper-large-v3-turbo` |
+
+Antes de qualquer mensagem automática, o CRM valida a identidade do contato com saída estruturada, evidências das mensagens recebidas e confiança mínima de 95%. Contatos ambíguos, nomes repetidos em números diferentes e rótulos que não permitem extrair um nome pessoal com segurança são bloqueados e registrados para auditoria.
 | Transcrição direta pela OpenAI (fallback) | `OPENAI_TRANSCRIPTION_MODEL` | `whisper-1` |
 | JD AI com pesquisa web | `OPENAI_JD_AI_MODEL` | `gpt-4o` |
 

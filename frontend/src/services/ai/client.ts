@@ -84,7 +84,9 @@ export async function logAiCall(data: { model: string; promptType: string; leadI
   await prisma.aiLog.create({ data: { model: data.model, promptType: data.promptType, leadId: data.leadId, inputTokens: data.usage.input_tokens, outputTokens: data.usage.output_tokens, estimatedCostUsd: calculateCost(data.model, data.usage), latencyMs: data.latencyMs, success: data.success, errorMessage: data.errorMessage } }).catch((error: unknown) => console.error("Falha ao registrar uso de IA", error instanceof Error ? error.message : "erro desconhecido"));
 }
 
-export async function respond(params: { model: string; instructions: string; input: string; reasoning?: "low"; promptType: string; leadId?: string }) {
+type ReasoningEffort = "low" | "medium" | "high";
+
+export async function respond(params: { model: string; instructions: string; input: string; reasoning?: ReasoningEffort; promptType: string; leadId?: string }) {
   const startedAt = Date.now();
   try {
     const response = await getOpenAI().responses.create({
@@ -101,6 +103,61 @@ export async function respond(params: { model: string; instructions: string; inp
   } catch (error) {
     await logAiCall({ model: params.model, promptType: params.promptType, leadId: params.leadId, usage: { input_tokens: 0, output_tokens: 0 }, latencyMs: Date.now() - startedAt, success: false, errorMessage: error instanceof Error ? error.message : "Erro desconhecido" });
     throw error;
+  }
+}
+
+export async function respondStructured<T>(params: {
+  model: string;
+  instructions: string;
+  input: string;
+  name: string;
+  jsonSchema: Record<string, unknown>;
+  schema: z.ZodType<T>;
+  reasoning?: ReasoningEffort;
+  promptType: string;
+  leadId?: string;
+}) {
+  const startedAt = Date.now();
+  try {
+    const response = await getOpenAI().responses.create({
+      model: params.model,
+      instructions: params.instructions,
+      input: params.input,
+      text: {
+        format: {
+          type: "json_schema",
+          name: params.name,
+          strict: true,
+          schema: params.jsonSchema,
+        },
+      },
+      ...(params.reasoning && /(^|\/)(o\d|gpt-[56])/.test(params.model) ? { reasoning: { effort: params.reasoning } } : {}),
+    });
+    const usage = { input_tokens: response.usage?.input_tokens ?? 0, output_tokens: response.usage?.output_tokens ?? 0 };
+    const outputText = getResponseText(response);
+    if (!outputText) throw new Error("A IA não retornou a análise estruturada.");
+    const parsed = params.schema.parse(JSON.parse(outputText));
+    await logAiCall({ model: response.model, promptType: params.promptType, leadId: params.leadId, usage, latencyMs: Date.now() - startedAt, success: true });
+    return parsed;
+  } catch (error) {
+    await logAiCall({
+      model: params.model,
+      promptType: params.promptType,
+      leadId: params.leadId,
+      usage: { input_tokens: 0, output_tokens: 0 },
+      latencyMs: Date.now() - startedAt,
+      success: false,
+      errorMessage: error instanceof Error ? error.message : "Erro desconhecido",
+    });
+    const fallback = await respond({
+      model: params.model,
+      instructions: `${params.instructions}\nResponda somente com JSON válido que siga exatamente o schema solicitado.`,
+      input: params.input,
+      reasoning: params.reasoning,
+      promptType: `${params.promptType}_fallback`,
+      leadId: params.leadId,
+    });
+    return parseStructured(fallback, params.schema);
   }
 }
 

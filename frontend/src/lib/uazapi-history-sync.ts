@@ -88,8 +88,24 @@ async function upsertDirectoryBatch(ownerId: string, entries: DirectoryEntry[]) 
 
   const values = unique.map((entry) => Prisma.sql`(${entry.phone}, ${entry.name}, ${entry.avatarUrl ?? null}, ${entry.lastActivityAt?.toISOString() ?? null})`);
   await prisma.$executeRaw(Prisma.sql`
+    with repeated_names as (
+      select lower("name") as normalized_name
+        from crm."Lead"
+       where "userId" = ${ownerId}
+       group by lower("name")
+      having count(*) > 1
+    ), data(phone, name, avatar_url, last_activity_at) as (
+      values ${Prisma.join(values)}
+    )
     update crm."Lead" as lead
-       set "name" = case when lead."name" ~ ${FALLBACK_NAME.source} then data.name else lead."name" end,
+       set "name" = case
+             when data.name !~ ${FALLBACK_NAME.source}
+              and (
+                lead."name" ~ ${FALLBACK_NAME.source}
+                or lower(lead."name") in (select normalized_name from repeated_names)
+              ) then data.name
+             else lead."name"
+           end,
            "avatarUrl" = coalesce(data.avatar_url, lead."avatarUrl"),
            "lastActivityAt" = case
              when data.last_activity_at is null then lead."lastActivityAt"
@@ -97,7 +113,7 @@ async function upsertDirectoryBatch(ownerId: string, entries: DirectoryEntry[]) 
              else greatest(lead."lastActivityAt", data.last_activity_at::timestamptz)
            end,
            "updatedAt" = current_timestamp
-      from (values ${Prisma.join(values)}) as data(phone, name, avatar_url, last_activity_at)
+      from data
      where lead."userId" = ${ownerId}
        and lead."phone" = data.phone
   `);
@@ -180,7 +196,7 @@ export async function syncUazapiDirectory(owner: UazapiSyncOwner, options: { pag
       directory.set(entry.phone, {
         ...current,
         ...entry,
-        name: FALLBACK_NAME.test(entry.name) && current ? current.name : entry.name,
+        name: current && !FALLBACK_NAME.test(current.name) ? current.name : entry.name,
         avatarUrl: entry.avatarUrl ?? current?.avatarUrl,
       });
     }

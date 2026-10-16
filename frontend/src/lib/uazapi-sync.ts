@@ -80,12 +80,13 @@ export function uazapiMediaUrl(message: UazapiRecord, leadId: string) {
 }
 
 export function uazapiChatName(chat: UazapiRecord | undefined, message: UazapiRecord, phone: string) {
+  const incomingSenderName = message.fromMe === true ? undefined : stringValue(message.senderName);
   return stringValue(chat?.lead_fullName)
     ?? stringValue(chat?.lead_name)
     ?? stringValue(chat?.wa_contactName)
     ?? stringValue(chat?.name)
     ?? stringValue(chat?.wa_name)
-    ?? stringValue(message.senderName)
+    ?? incomingSenderName
     ?? `WhatsApp ${phone.slice(-4)}`;
 }
 

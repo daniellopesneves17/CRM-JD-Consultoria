@@ -2,6 +2,7 @@ import { PipelineStage, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isAutomationActiveForUser } from "@/lib/automation-access";
 import { generateWhatsAppReply, scoreLeadConversation } from "@/services/ai";
+import { assessContactIdentities } from "@/services/ai/contact-name";
 import { resolveUazapiConfig, sendText } from "@/services/uazapi";
 
 function boundedLimit(value?: number) {
@@ -39,6 +40,83 @@ function renderAutomationTemplate(template: string, leadName: string, brokerName
   return template
     .replace(/\[NOME DO CORRETOR\]/gi, brokerName)
     .replace(/\[NOME\]/gi, leadName);
+}
+
+type IdentityLead = {
+  id: string;
+  name: string;
+  notes: string | null;
+  conversations: Array<{ messages: Array<{ sender: string; content: string }> }>;
+};
+
+async function selectSafeAutomationLeads<T extends IdentityLead>(params: {
+  leads: T[];
+  userId: string;
+  automationId: string;
+  limit: number;
+}) {
+  const names = [...new Set(params.leads.map((lead) => lead.name))];
+  const grouped = names.length ? await prisma.lead.groupBy({
+    by: ["name"],
+    where: { userId: params.userId, name: { in: names } },
+    _count: { _all: true },
+  }) : [];
+  const occurrences = new Map(grouped.map((item) => [item.name.toLocaleLowerCase("pt-BR"), item._count._all]));
+  const approved: Array<{ lead: T; cleanName: string; greetingName: string }> = [];
+  let blocked = 0;
+  let errors = 0;
+
+  for (let index = 0; index < params.leads.length && approved.length < params.limit; index += 20) {
+    const batch = params.leads.slice(index, index + 20);
+    try {
+      const assessments = await assessContactIdentities(batch.map((lead) => ({
+        key: lead.id,
+        rawName: lead.name,
+        nameOccurrences: occurrences.get(lead.name.toLocaleLowerCase("pt-BR")) ?? 1,
+        notes: lead.notes,
+        incomingMessages: lead.conversations.flatMap((conversation) => conversation.messages)
+          .filter((message) => message.sender === "LEAD")
+          .map((message) => message.content),
+      })));
+      const byKey = new Map(assessments.map((assessment) => [assessment.key, assessment]));
+      const auditRows = [];
+      for (const lead of batch) {
+        const assessment = byKey.get(lead.id);
+        const identityApproved = Boolean(assessment?.approved && assessment.cleanName && assessment.greetingName);
+        if (identityApproved && approved.length < params.limit) {
+          approved.push({ lead, cleanName: assessment!.cleanName!, greetingName: assessment!.greetingName! });
+        } else if (!identityApproved) {
+          blocked += 1;
+        }
+        auditRows.push({
+          leadId: lead.id,
+          type: `automation_identity_${identityApproved ? "approved" : "blocked"}_${params.automationId}`,
+          detail: JSON.stringify({
+            rawName: lead.name,
+            cleanName: assessment?.cleanName ?? null,
+            greetingName: assessment?.greetingName ?? null,
+            confidence: assessment?.confidence ?? 0,
+            evidence: assessment?.evidence ?? "NONE",
+            reason: assessment?.reason ?? "Contato sem avaliação conclusiva.",
+          }),
+        });
+      }
+      await prisma.activity.createMany({ data: auditRows });
+    } catch (error) {
+      errors += batch.length;
+      blocked += batch.length;
+      await prisma.errorLog.create({
+        data: {
+          source: "automation_identity",
+          message: error instanceof Error ? error.message : "Falha ao validar nomes antes da automação.",
+          context: { automationId: params.automationId, userId: params.userId, leadIds: batch.map((lead) => lead.id) },
+        },
+      }).catch(() => undefined);
+      break;
+    }
+  }
+
+  return { approved, blocked, errors };
 }
 
 export function isBulkReactivationAutomation(trigger: string, config: unknown) {
@@ -101,22 +179,22 @@ export async function executeAutomationForUser(
         conversations: {
           orderBy: { updatedAt: "desc" },
           take: 1,
-          include: { messages: { where: { sender: "LEAD" }, orderBy: { sentAt: "desc" }, take: 1 } },
+          include: { messages: { where: { sender: "LEAD" }, orderBy: { sentAt: "desc" }, take: 12 } },
         },
       },
       orderBy: [{ lastActivityAt: "asc" }, { createdAt: "asc" }],
       take: Math.min(150, remaining * 3),
     });
-    const leads = candidates
-      .filter((lead) => !bulkConfig.respeitar_opt_out || !OPT_OUT_PATTERN.test(`${lead.notes ?? ""}\n${lead.conversations[0]?.messages[0]?.content ?? ""}`))
-      .slice(0, remaining);
+    const consented = candidates.filter((lead) => !bulkConfig.respeitar_opt_out || !OPT_OUT_PATTERN.test(`${lead.notes ?? ""}\n${lead.conversations[0]?.messages.map((message) => message.content).join("\n") ?? ""}`));
+    const identity = await selectSafeAutomationLeads({ leads: consented, userId: user.id, automationId: rule.id, limit: remaining });
+    const leads = identity.approved;
     const uazapi = resolveUazapiConfig(user);
     if (leads.length > 0 && !uazapi) throw new Error(`Conecte a Uazapi de ${user.name} antes de executar os envios.`);
 
     let sent = 0;
-    let errors = 0;
-    for (const lead of leads) {
-      const text = renderAutomationTemplate(rule.template, lead.name, user.name);
+    let errors = identity.errors;
+    for (const { lead, greetingName } of leads) {
+      const text = renderAutomationTemplate(rule.template, greetingName, user.name);
       try {
         await sendText(lead.phone, text, uazapi);
         const conversation = lead.conversations[0]
@@ -156,6 +234,8 @@ export async function executeAutomationForUser(
       eligible: leads.length,
       sent,
       errors,
+      identityBlocked: identity.blocked,
+      identityErrors: identity.errors,
       remainingToday: Math.max(0, configuredLimit - alreadySentToday - sent),
     };
   }
@@ -180,11 +260,12 @@ export async function executeAutomationForUser(
     });
     const uazapi = resolveUazapiConfig(user);
     if (leads.length > 0 && !uazapi) throw new Error("Conecte a Uazapi deste corretor antes de executar envios automáticos.");
+    const identity = await selectSafeAutomationLeads({ leads, userId: user.id, automationId: rule.id, limit });
     let sent = 0;
-    for (const lead of leads) {
+    for (const { lead, greetingName } of identity.approved) {
       const messages = lead.conversations[0]?.messages ?? [];
       const text = await generateWhatsAppReply({
-        leadName: lead.name,
+        leadName: greetingName,
         leadStage: lead.stage,
         livesCount: lead.livesCount,
         notes: `${lead.notes ?? ""}\nModelo da regra: ${rule.template}`,
@@ -204,7 +285,15 @@ export async function executeAutomationForUser(
       where: { id: rule.id },
       data: { sentCount: { increment: sent }, lastRunAt: new Date() },
     });
-    return { automationId: rule.id, automation: rule.name, executed: true, action: "follow_up", sent };
+    return {
+      automationId: rule.id,
+      automation: rule.name,
+      executed: true,
+      action: "follow_up",
+      sent,
+      errors: identity.errors,
+      identityBlocked: identity.blocked,
+    };
   }
 
   if (rule.trigger === "inactive_lead" || rule.trigger === "cold_lead") {

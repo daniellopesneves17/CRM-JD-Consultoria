@@ -24,6 +24,11 @@ test("normaliza contato, nome e data do histórico da Uazapi", () => {
   assert.equal(uazapiMessageDate(1_790_000_000_000).getTime(), 1_790_000_000_000);
 });
 
+test("não usa o nome do corretor em mensagens enviadas como nome do cliente", () => {
+  assert.equal(uazapiChatName(undefined, { fromMe: true, senderName: "Nome do corretor" }, "5521999991234"), "WhatsApp 1234");
+  assert.equal(uazapiChatName(undefined, { fromMe: false, senderName: "Nome da cliente" }, "5521999991234"), "Nome da cliente");
+});
+
 test("normaliza contatos da agenda da Uazapi", () => {
   const contact = { jid: "5522999990000@s.whatsapp.net", contact_name: "Contato da agenda" };
   assert.equal(uazapiContactPhone(contact), "5522999990000");

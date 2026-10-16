@@ -5,6 +5,8 @@ import { executeAutomationForActor } from "@/lib/automation-execution";
 import { prisma } from "@/lib/prisma";
 import { apiError, requireUser } from "@/lib/route";
 
+export const maxDuration = 300;
+
 const schema = z.object({
   limit: z.number().int().min(1).max(50).optional(),
   userId: z.string().min(1).nullable().optional(),
