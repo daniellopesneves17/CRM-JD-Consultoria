@@ -1,5 +1,6 @@
 // Executa follow-ups e registra duração, volume processado e falhas para auditoria.
 import { NextResponse } from "next/server";
+import { registeredBrokerFirstName } from "@/lib/broker-identity";
 import { prisma } from "@/lib/prisma";
 import { enabledAutomationUsers, isAutomationActiveForUser } from "@/lib/automation-access";
 import { executeAutomationForUser } from "@/lib/automation-execution";
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
   try {
     const dueReactivations = await prisma.task.findMany({
       where: { type: "REATIVACAO", done: false, dueAt: { lte: new Date() } },
-      include: { lead: { include: { assignedTo: { select: { email: true, uazapiBaseUrl: true, uazapiToken: true } }, conversations: { orderBy: { updatedAt: "desc" }, take: 1, include: { messages: { orderBy: { sentAt: "desc" }, take: 8 } } } } } },
+      include: { lead: { include: { assignedTo: { select: { name: true, email: true, uazapiBaseUrl: true, uazapiToken: true } }, conversations: { orderBy: { updatedAt: "desc" }, take: 1, include: { messages: { orderBy: { sentAt: "desc" }, take: 8 } } } } } },
       take: 15
     });
     for (const task of dueReactivations) {
@@ -27,7 +28,12 @@ export async function GET(request: Request) {
       const owner = task.lead.assignedTo;
       const config = resolveUazapiConfig(owner ?? undefined);
       if (!config) continue;
-      const strategy = await suggestReactivationStrategy({ leadProfile: { name: task.lead.name, stage: task.lead.stage, lostReason: task.lead.lostReason ?? undefined, notes: task.lead.notes ?? undefined }, lastMessages: messages.map((item) => ({ sender: item.sender, content: item.content })) });
+      const brokerFirstName = registeredBrokerFirstName(owner?.name);
+      if (!brokerFirstName) {
+        await prisma.errorLog.create({ data: { source: "broker_identity", message: "Reativação bloqueada: responsável sem nome pessoal cadastrado.", context: { userId: task.lead.userId, taskId: task.id } } }).catch(() => undefined);
+        continue;
+      }
+      const strategy = await suggestReactivationStrategy({ brokerFirstName, leadProfile: { name: task.lead.name, stage: task.lead.stage, lostReason: task.lead.lostReason ?? undefined, notes: task.lead.notes ?? undefined }, lastMessages: messages.map((item) => ({ sender: item.sender, content: item.content })) });
       await sendText(task.lead.phone, strategy.message, config);
       await prisma.$transaction([
         prisma.task.update({ where: { id: task.id }, data: { done: true, doneAt: new Date() } }),

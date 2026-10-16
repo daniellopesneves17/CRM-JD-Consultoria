@@ -2,6 +2,7 @@
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { isAutomationActiveForUser } from "@/lib/automation-access";
+import { requireRegisteredBrokerFirstName } from "@/lib/broker-identity";
 import { prisma } from "@/lib/prisma";
 import { createNotification, notifyAdmins } from "@/lib/notifications";
 import { allowRequest } from "@/lib/rate-limit";
@@ -22,12 +23,12 @@ const asString = (value: unknown) => typeof value === "string" ? value : undefin
 
 async function configuredOwner(token?: string) {
   if (token) {
-    const linked = await prisma.user.findFirst({ where: { uazapiToken: token }, select: { id: true, email: true, active: true, crmEnabled: true, uazapiBaseUrl: true, uazapiToken: true } });
+    const linked = await prisma.user.findFirst({ where: { uazapiToken: token }, select: { id: true, name: true, email: true, active: true, crmEnabled: true, uazapiBaseUrl: true, uazapiToken: true } });
     if (linked) return linked;
   }
   const email = process.env.UAZAPI_OWNER_EMAIL?.trim().toLowerCase();
   if (!email) return null;
-  const owner = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, active: true, crmEnabled: true, uazapiBaseUrl: true, uazapiToken: true } });
+  const owner = await prisma.user.findUnique({ where: { email }, select: { id: true, name: true, email: true, active: true, crmEnabled: true, uazapiBaseUrl: true, uazapiToken: true } });
   if (!owner?.active || !owner.crmEnabled) throw new Error(`Responsável da Uazapi indisponível: ${email}`);
   return owner;
 }
@@ -108,7 +109,8 @@ async function processReceived(message: Record<string, unknown>, instanceToken?:
   if (shouldUseAutomaticPreAttendance(fromMe, previousCount, preAttendanceActive)) {
     try {
       if (analyzedText && isAiConfigured() && process.env.UAZAPI_TOKEN) {
-        const reply = await generatePreAttendance({ leadPhone: phone, firstMessage: analyzedText });
+        const brokerFirstName = requireRegisteredBrokerFirstName(owner.name);
+        const reply = await generatePreAttendance({ brokerFirstName, leadPhone: phone, firstMessage: analyzedText });
         const sent = await sendText(phone, reply, config);
         const replyMessage = await prisma.message.create({ data: { conversationId: conversation.id, sender: "BOT", content: reply } });
         const replyExternalId = typeof sent.messageid === "string" ? sent.messageid : typeof sent.id === "string" ? sent.id : null;

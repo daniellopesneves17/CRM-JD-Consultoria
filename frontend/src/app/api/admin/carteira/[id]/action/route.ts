@@ -1,6 +1,7 @@
 // Executa ações assistidas por IA para renovação, reativação e aniversário.
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { requireRegisteredBrokerFirstName } from "@/lib/broker-identity";
 import { prisma } from "@/lib/prisma";
 import { apiError, requireAdmin } from "@/lib/route";
 import { respond } from "@/services/ai/client";
@@ -14,18 +15,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const { id } = await params;
     const body = bodySchema.parse(await request.json());
-    const lead = await prisma.lead.findUniqueOrThrow({ where: { id }, include: { assignedTo: { select: { email: true, uazapiBaseUrl: true, uazapiToken: true } } } });
+    const lead = await prisma.lead.findUniqueOrThrow({ where: { id }, include: { assignedTo: { select: { name: true, email: true, uazapiBaseUrl: true, uazapiToken: true } } } });
     if (!body.send) {
       const task = await prisma.task.create({ data: { leadId: id, title: "Acompanhar renovação", description: "Contato criado pelo painel de saúde da carteira.", dueAt: new Date(Date.now() + 86_400_000), type: "FOLLOWUP" } });
       return NextResponse.json({ task, sent: false });
     }
-    const instructions = body.type === "birthday"
+    const owner = lead.assignedTo;
+    const brokerFirstName = requireRegisteredBrokerFirstName(owner?.name);
+    const instructions = (body.type === "birthday"
       ? "Escreva uma mensagem curta, calorosa, humana e não comercial de feliz aniversário em português do Brasil. Não use markdown."
       : body.type === "renewal"
         ? "Escreva uma mensagem breve e consultiva em português do Brasil para iniciar a renovação do plano de saúde, sem pressão comercial. Não use markdown."
-        : "Escreva uma mensagem breve e humana em português do Brasil para retomar o relacionamento com um cliente de plano de saúde, sem pressão. Não use markdown.";
-    const message = await respond({ model: process.env.OPENAI_FAST_MODEL ?? "gpt-4o", instructions, input: JSON.stringify({ name: lead.name, operator: lead.currentOperator, notes: lead.notes }), promptType: body.type, leadId: lead.id });
-    const owner = lead.assignedTo;
+        : "Escreva uma mensagem breve e humana em português do Brasil para retomar o relacionamento com um cliente de plano de saúde, sem pressão. Não use markdown.")
+      + ` Quando precisar se apresentar, use somente o primeiro nome ${brokerFirstName}. Nunca use nome de empresa, corretora, equipe ou outro nome próprio.`;
+    const message = await respond({ model: process.env.OPENAI_FAST_MODEL ?? "gpt-4o", instructions, input: JSON.stringify({ name: lead.name, operator: lead.currentOperator, notes: lead.notes, brokerFirstName }), promptType: body.type, leadId: lead.id });
     const config = resolveUazapiConfig(owner ?? undefined);
     await sendText(lead.phone, message, config);
     await prisma.activity.create({ data: { leadId: lead.id, type: `${body.type}_message_sent`, detail: message } });

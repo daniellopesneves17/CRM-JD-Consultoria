@@ -1,6 +1,7 @@
 // Sugere uma resposta com IA e, somente quando solicitado, envia via Uazapi.
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { requireRegisteredBrokerFirstName } from "@/lib/broker-identity";
 import { prisma } from "@/lib/prisma";
 import { apiError, requireUser } from "@/lib/route";
 import { generateWhatsAppReply } from "@/services/ai";
@@ -12,11 +13,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const access = await requireUser(); if ("response" in access) return access.response;
   try {
     const { id } = await params; const body = bodySchema.parse(await request.json().catch(() => ({})));
-    const conversation = await prisma.conversation.findFirst({ where: { id, lead: { userId: access.session.user.role === "ADMIN" ? body.ownerId || "__admin_scope_required__" : access.session.user.id } }, include: { lead: { include: { assignedTo: { select: { email: true, uazapiBaseUrl: true, uazapiToken: true } } } }, messages: { orderBy: { sentAt: "asc" }, take: 40 } } });
+    const conversation = await prisma.conversation.findFirst({ where: { id, lead: { userId: access.session.user.role === "ADMIN" ? body.ownerId || "__admin_scope_required__" : access.session.user.id } }, include: { lead: { include: { assignedTo: { select: { name: true, email: true, uazapiBaseUrl: true, uazapiToken: true } } } }, messages: { orderBy: { sentAt: "asc" }, take: 40 } } });
     if (!conversation) return NextResponse.json({ error: "Conversa não encontrada." }, { status: 404 });
-    const suggestion = body.text ?? await generateWhatsAppReply({ leadName: conversation.lead.name, leadStage: conversation.lead.stage, livesCount: conversation.lead.livesCount, notes: conversation.lead.notes ?? "", conversationHistory: conversation.messages.map((message) => ({ role: message.sender === "LEAD" ? "user" as const : "assistant" as const, content: message.transcription || message.content })), triggerType: "new_message" });
-    if (!body.send) return NextResponse.json({ suggestion });
     const owner = conversation.lead.assignedTo;
+    const suggestion = body.text ?? await generateWhatsAppReply({ brokerFirstName: requireRegisteredBrokerFirstName(owner?.name), leadName: conversation.lead.name, leadStage: conversation.lead.stage, livesCount: conversation.lead.livesCount, notes: conversation.lead.notes ?? "", conversationHistory: conversation.messages.map((message) => ({ role: message.sender === "LEAD" ? "user" as const : "assistant" as const, content: message.transcription || message.content })), triggerType: "new_message" });
+    if (!body.send) return NextResponse.json({ suggestion });
     const config = resolveUazapiConfig(owner ?? undefined);
     const sent = await sendText(conversation.lead.phone, suggestion, config);
     const message = await prisma.message.create({ data: { conversationId: id, sender: "CORRETOR", content: suggestion, userId: access.session.user.id } });

@@ -1,4 +1,5 @@
 import { PipelineStage, Role } from "@prisma/client";
+import { requireRegisteredBrokerFirstName } from "@/lib/broker-identity";
 import { prisma } from "@/lib/prisma";
 import { isAutomationActiveForUser } from "@/lib/automation-access";
 import { generateWhatsAppReply, scoreLeadConversation } from "@/services/ai";
@@ -147,6 +148,7 @@ export async function executeAutomationForUser(
 
   if (isBulkReactivationAutomation(rule.trigger, rule.config)) {
     const bulkConfig = (rule.config ?? {}) as BulkReactivationConfig;
+    const brokerFirstName = requireRegisteredBrokerFirstName(user.name);
     const inactiveDays = 14;
     const threshold = new Date(Date.now() - inactiveDays * 86_400_000);
     const dayStart = saoPauloDayStart();
@@ -194,7 +196,7 @@ export async function executeAutomationForUser(
     let sent = 0;
     let errors = identity.errors;
     for (const { lead, greetingName } of leads) {
-      const text = renderAutomationTemplate(rule.template, greetingName, user.name);
+      const text = renderAutomationTemplate(rule.template, greetingName, brokerFirstName);
       try {
         await sendText(lead.phone, text, uazapi);
         const conversation = lead.conversations[0]
@@ -241,6 +243,7 @@ export async function executeAutomationForUser(
   }
 
   if (rule.trigger === "proposal_sent_no_response") {
+    const brokerFirstName = requireRegisteredBrokerFirstName(user.name);
     const threshold = new Date(Date.now() - rule.delayHours * 3_600_000);
     const leads = await prisma.lead.findMany({
       where: {
@@ -265,6 +268,7 @@ export async function executeAutomationForUser(
     for (const { lead, greetingName } of identity.approved) {
       const messages = lead.conversations[0]?.messages ?? [];
       const text = await generateWhatsAppReply({
+        brokerFirstName,
         leadName: greetingName,
         leadStage: lead.stage,
         livesCount: lead.livesCount,

@@ -1,5 +1,6 @@
 // Análises profundas de score, resumo, qualificação e reativação.
 import { z } from "zod";
+import { requireRegisteredBrokerFirstName } from "@/lib/broker-identity";
 import { parseStructured, respond } from "./client";
 import { PERSONA_BASE, QUALIFICATION_PROMPT, REACTIVATION_PROMPT, SCORE_PROMPT, SUMMARY_PROMPT } from "./prompts";
 
@@ -31,7 +32,8 @@ export function qualifyLead(params: { conversationHistory: Array<{ sender: strin
 }
 
 const strategySchema = z.object({ message: z.string(), approach: z.string(), bestTime: z.string() });
-export function suggestReactivationStrategy(params: { leadProfile: { name: string; stage: string; lostReason?: string; notes?: string }; lastMessages: Array<{ sender: string; content: string }> }) {
-  return deepJson(`${PERSONA_BASE}\n${REACTIVATION_PROMPT}\nResponda apenas JSON com message, approach e bestTime.`, params, strategySchema, "reactivation");
+export function suggestReactivationStrategy(params: { brokerFirstName: string; leadProfile: { name: string; stage: string; lostReason?: string; notes?: string }; lastMessages: Array<{ sender: string; content: string }> }) {
+  const brokerFirstName = requireRegisteredBrokerFirstName(params.brokerFirstName);
+  return deepJson(`${PERSONA_BASE}\n${REACTIVATION_PROMPT}\nO nome autorizado para apresentação nesta conversa é: ${brokerFirstName}.\nResponda apenas JSON com message, approach e bestTime.`, { ...params, brokerFirstName }, strategySchema, "reactivation");
 }
 
