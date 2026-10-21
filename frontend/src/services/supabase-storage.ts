@@ -5,6 +5,7 @@ export const PUBLIC_ASSET_MAX_BYTES = 20 * 1024 * 1024;
 export const PUBLIC_ASSET_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 export const PROFIT_PROOF_MAX_BYTES = 20 * 1024 * 1024;
 export const PROFIT_PROOF_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "application/pdf"]);
+export const WHATSAPP_BACKUP_BUCKET = "chat-backups";
 
 function storageClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -96,6 +97,35 @@ export async function createProfitProofViewUrl(path: string) {
   const { data, error } = await storageClient().storage.from("profit-proofs").createSignedUrl(path, 5 * 60);
   if (error) throw new Error(`Falha ao abrir o comprovante: ${error.message}`);
   return data.signedUrl;
+}
+
+export async function uploadWhatsAppBackup(path: string, data: Uint8Array) {
+  const { error } = await storageClient().storage.from(WHATSAPP_BACKUP_BUCKET).upload(path, data, {
+    contentType: "application/vnd.jd-consultoria.whatsapp-backup+json",
+    cacheControl: "0",
+    upsert: false,
+  });
+  if (error) throw new Error(`Falha ao guardar o backup: ${error.message}`);
+}
+
+export async function listWhatsAppBackups(ownerId: string) {
+  const { data, error } = await storageClient().storage.from(WHATSAPP_BACKUP_BUCKET).list(ownerId, {
+    limit: 100,
+    sortBy: { column: "created_at", order: "desc" },
+  });
+  if (error) throw new Error(`Falha ao listar backups: ${error.message}`);
+  return data.filter((item) => item.name.endsWith(".jdbackup"));
+}
+
+export async function downloadWhatsAppBackup(path: string) {
+  const { data, error } = await storageClient().storage.from(WHATSAPP_BACKUP_BUCKET).download(path);
+  if (error) throw new Error(`Falha ao abrir o backup: ${error.message}`);
+  return new Uint8Array(await data.arrayBuffer());
+}
+
+export async function deleteWhatsAppBackup(path: string) {
+  const { error } = await storageClient().storage.from(WHATSAPP_BACKUP_BUCKET).remove([path]);
+  if (error) throw new Error(`Falha ao excluir o backup: ${error.message}`);
 }
 
 export async function getStorageUsage() {

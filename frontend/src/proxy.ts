@@ -21,6 +21,6 @@ export default auth((request) => {
 
 export const config = {
   matcher: [
-    "/((?!login|api/auth|api/health|api/webhook|api/cron|_next/static|_next/image|favicon.ico|jd-favicon.png|jd-logo.png|apple-touch-icon.png).*)"
+    "/((?!login|api/auth|api/health|api/webhook|api/cron|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|jd-favicon.png|jd-logo.png|apple-touch-icon.png).*)"
   ]
 };

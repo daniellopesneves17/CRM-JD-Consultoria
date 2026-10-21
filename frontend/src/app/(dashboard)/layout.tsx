@@ -17,7 +17,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => { document.body.style.overflow = previous; };
   }, [mobileMenuOpen]);
 
-  if (pathname.startsWith("/admin")) return children;
+  if (pathname.startsWith("/admin") || pathname.startsWith("/app")) return children;
   const inbox = pathname.startsWith("/inbox");
   return <div className="min-h-screen bg-slate-50 transition-colors dark:bg-slate-950">
     <Sidebar mobileOpen={mobileMenuOpen} onClose={closeMobileMenu}/>

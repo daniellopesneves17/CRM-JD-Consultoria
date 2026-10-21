@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart3, Bot, FileText, HeartPulse, Home, LoaderCircle, MessageSquare, Settings, ShieldCheck, Target, TrendingUp, Users, X, Zap } from "lucide-react";
+import { BarChart3, Bot, FileText, HeartPulse, Home, LoaderCircle, MessageSquare, Settings, ShieldCheck, Smartphone, Target, TrendingUp, Users, X, Zap } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 
 const links = [
-  ["/dashboard", "Dashboard", Home], ["/jd-ai", "JD AI", Bot], ["/inbox", "Inbox WhatsApp", MessageSquare], ["/pipeline", "Pipeline", BarChart3],
+  ["/app", "App JD", Smartphone], ["/dashboard", "Dashboard", Home], ["/jd-ai", "JD AI", Bot], ["/inbox", "Inbox WhatsApp", MessageSquare], ["/pipeline", "Pipeline", BarChart3],
   ["/leads", "Leads", Users], ["/proposals", "Propostas", FileText], ["/automations", "Automações", Zap],
   ["/goals", "Metas", Target], ["/metrics", "Métricas", TrendingUp], ["/settings", "Minha conta", Settings],
 ] as const;

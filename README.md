@@ -6,6 +6,7 @@ CRM full-stack para corretagem de planos de saúde. O único serviço de produç
 
 - Dashboard comercial, pipeline ordenado por score, leads e perfil 360°.
 - Inbox Uazapi com atendimento BOT/HUMANO, sugestão de resposta e envio manual.
+- App JD instalável (PWA) para Android, iPhone e desktop, com inbox móvel e cofre de backups criptografados.
 - IA híbrida: resposta rápida, análise profunda, triagem econômica e transcrição.
 - JD AI com chat individual, pesquisa web com fontes e radar diário do mercado de planos de saúde.
 - Propostas em PDF, armazenamento privado e envio pelo WhatsApp.
@@ -45,7 +46,15 @@ Abra `http://localhost:3000`. O seed cria ou atualiza a conta indicada em `ADMIN
 3. Use a conexão direta ou Session Pooler (porta 5432) em `DIRECT_URL`.
 4. Preserve `schema=crm`: as tabelas operacionais ficam fora do schema `public` exposto pela Data API.
 5. Execute `npx prisma migrate deploy` dentro de `frontend/`.
-6. No Storage, crie os buckets privados `proposals` e `audios` e o bucket público `assets` para logotipos. O servidor usa `SUPABASE_SERVICE_ROLE_KEY`; a chave nunca chega ao navegador.
+6. No Storage, crie os buckets privados `proposals`, `audios` e `chat-backups` e o bucket público `assets` para logotipos. O servidor usa `SUPABASE_SERVICE_ROLE_KEY`; a chave nunca chega ao navegador.
+
+## App JD e backups
+
+O App JD fica em `/app` e pode ser instalado pelo navegador como PWA. Ele reutiliza a mesma autenticação, a mesma caixa de entrada e as mesmas APIs do CRM; não expõe credenciais da Uazapi no dispositivo. O service worker armazena somente arquivos estáticos e não coloca conversas, respostas de API ou páginas autenticadas no cache offline.
+
+Cada backup é comprimido e criptografado com AES-256-GCM antes de ser enviado ao bucket privado `chat-backups`. A chave é derivada da senha com PBKDF2-SHA-256; a senha não é persistida e não pode ser recuperada. O conteúdo aberto existe apenas durante a requisição autenticada e a visualização é somente leitura.
+
+O arquivo preserva mensagens e metadados disponíveis no CRM. Imagens, áudios e documentos são mantidos como referências à integração atual, portanto a reprodução futura dessas mídias depende de elas continuarem disponíveis na origem.
 
 ## OpenAI
 
