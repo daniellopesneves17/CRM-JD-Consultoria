@@ -29,7 +29,7 @@ export function MessageBubble({ message }: { message: Message }) {
   return <>
   <div className={cn("flex", incoming ? "justify-start" : "justify-end")}>
     <article className={cn(
-      "relative max-w-[86%] overflow-hidden rounded-2xl shadow-sm sm:max-w-[76%]",
+      "relative max-w-[92%] overflow-hidden rounded-2xl shadow-sm sm:max-w-[82%] lg:max-w-[76%]",
       incoming
         ? "rounded-bl-md border border-slate-200/80 bg-white text-slate-800 dark:border-slate-700/80 dark:bg-slate-800 dark:text-slate-100"
         : message.sender === "BOT"
@@ -44,9 +44,9 @@ export function MessageBubble({ message }: { message: Message }) {
         {message.mediaUrl ? <video controls playsInline preload="metadata" src={message.mediaUrl} className="max-h-[min(48vh,420px)] w-full object-contain">Seu navegador não reproduz este vídeo.</video> : <div className="flex min-h-32 items-center justify-center gap-2 text-sm text-white/70"><Video size={18}/>Vídeo indisponível</div>}
       </div>}
       <div className="px-3.5 py-2.5">
-        {message.type === "AUDIO" && <div className="mb-2 min-w-[220px]"><div className="mb-2 flex items-center gap-2 text-xs font-semibold opacity-75"><Mic size={15}/>Mensagem de áudio</div>{message.mediaUrl ? <audio controls preload="metadata" src={message.mediaUrl} className="h-10 w-full max-w-[330px]"/> : <p className="text-xs opacity-70">Áudio indisponível</p>}</div>}
+        {message.type === "AUDIO" && <div className="mb-2 min-w-0 sm:min-w-[220px]"><div className="mb-2 flex items-center gap-2 text-xs font-semibold opacity-75"><Mic size={15}/>Mensagem de áudio</div>{message.mediaUrl ? <audio controls preload="metadata" src={message.mediaUrl} className="h-10 w-full max-w-[330px]"/> : <p className="text-xs opacity-70">Áudio indisponível</p>}</div>}
         {message.type === "DOCUMENT" && <div className="mb-2">
-          {message.mediaUrl ? <a href={message.mediaUrl} target="_blank" rel="noreferrer" className="flex min-w-[220px] items-center gap-3 rounded-xl bg-black/10 p-3 transition hover:bg-black/15 dark:bg-white/10 dark:hover:bg-white/15"><span className="grid h-10 w-10 place-items-center rounded-lg bg-white/80 text-brand-700 dark:bg-slate-900 dark:text-brand-300"><FileText size={20}/></span><span className="min-w-0 flex-1"><strong className="block text-sm">Arquivo do WhatsApp</strong><span className="block text-[11px] opacity-65">Toque para visualizar</span></span><Download size={17}/></a> : <div className="flex items-center gap-2 text-sm opacity-70"><FileText size={17}/>Arquivo indisponível</div>}
+          {message.mediaUrl ? <a href={message.mediaUrl} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-3 rounded-xl bg-black/10 p-3 transition hover:bg-black/15 dark:bg-white/10 dark:hover:bg-white/15 sm:min-w-[220px]"><span className="grid h-10 w-10 place-items-center rounded-lg bg-white/80 text-brand-700 dark:bg-slate-900 dark:text-brand-300"><FileText size={20}/></span><span className="min-w-0 flex-1"><strong className="block truncate text-sm">Arquivo do WhatsApp</strong><span className="block text-[11px] opacity-65">Toque para visualizar</span></span><Download size={17}/></a> : <div className="flex items-center gap-2 text-sm opacity-70"><FileText size={17}/>Arquivo indisponível</div>}
         </div>}
         {label && <WhatsAppText>{label}</WhatsAppText>}
         {message.transcription && <details className="mt-2 border-t border-current/10 pt-2"><summary className="cursor-pointer text-xs font-semibold">Ver transcrição</summary><div className="mt-1 text-xs opacity-80"><WhatsAppText>{message.transcription}</WhatsAppText></div></details>}
@@ -54,8 +54,8 @@ export function MessageBubble({ message }: { message: Message }) {
       </div>
     </article>
   </div>
-  {previewOpen && message.mediaUrl && <div role="dialog" aria-modal="true" aria-label="Visualização da imagem" className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/95 p-3 backdrop-blur-sm sm:p-8" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewOpen(false); }}>
-    <div className="absolute inset-x-0 top-0 flex h-16 items-center justify-between bg-gradient-to-b from-black/70 to-transparent px-4 text-white sm:px-7"><span className="text-sm font-semibold">Imagem da conversa</span><button type="button" onClick={() => setPreviewOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-white/10 transition hover:bg-white/20" aria-label="Fechar visualização"><X size={22}/></button></div>
+  {previewOpen && message.mediaUrl && <div role="dialog" aria-modal="true" aria-label="Visualização da imagem" className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/95 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-[max(.75rem,env(safe-area-inset-top))] backdrop-blur-sm sm:p-8" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewOpen(false); }}>
+    <div className="absolute inset-x-0 top-0 flex min-h-16 items-center justify-between bg-gradient-to-b from-black/70 to-transparent px-4 pb-2 pt-[max(.5rem,env(safe-area-inset-top))] text-white sm:px-7"><span className="text-sm font-semibold">Imagem da conversa</span><button type="button" onClick={() => setPreviewOpen(false)} className="grid h-11 w-11 place-items-center rounded-full bg-white/10 transition hover:bg-white/20" aria-label="Fechar visualização"><X size={22}/></button></div>
     <img src={message.mediaUrl} alt="Imagem ampliada da conversa" className="max-h-[calc(100dvh-5rem)] max-w-full select-none object-contain" decoding="async"/>
   </div>}
   </>;

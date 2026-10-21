@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     apple: [{ url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" }]
   }
 };
-export const viewport: Viewport = { themeColor: "#050608", width: "device-width", initialScale: 1, viewportFit: "cover" };
+export const viewport: Viewport = { themeColor: "#050608", width: "device-width", initialScale: 1, viewportFit: "cover", interactiveWidget: "resizes-content" };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const themeScript=`(()=>{try{const saved=localStorage.getItem('crm-theme');const dark=saved==='dark'||(!saved&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',dark)}catch{}})()`;
   return <html lang="pt-BR" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{__html:themeScript}}/></head><body><Providers><PwaLifecycle/>{children}</Providers></body></html>;
