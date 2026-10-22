@@ -1,0 +1,6 @@
+<shortcuts xmlns:android='http://schemas.android.com/apk/res/android'>
+    <shortcut android:shortcutId='shortcut0' android:enabled='true' android:icon='@drawable/shortcut_0' android:shortcutShortLabel='@string/shortcut_short_name_0' android:shortcutLongLabel='@string/shortcut_name_0'>
+        <intent android:action='android.intent.action.MAIN' android:targetPackage='br.com.jdconsultoria.app' android:targetClass='br.com.jdconsultoria.app.LauncherActivity' android:data='https://crm-jd-consultoria.vercel.app/app?platform=android' />
+        <categories android:name='android.intent.category.LAUNCHER' />
+    </shortcut>
+</shortcuts>

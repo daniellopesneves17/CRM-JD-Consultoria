@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "br.com.jdconsultoria.app",
+      "sha256_cert_fingerprints": [
+        "E8:EC:70:7B:18:52:FF:40:07:99:95:B0:13:59:B7:47:64:FE:89:42:E7:B6:7A:61:C6:FD:97:A5:4D:8B:26:B6"
+      ]
+    }
+  }
+]

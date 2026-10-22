@@ -8,7 +8,7 @@ import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 
 const links = [
-  ["/app", "App JD", Smartphone], ["/dashboard", "Dashboard", Home], ["/jd-ai", "JD AI", Bot], ["/inbox", "Inbox WhatsApp", MessageSquare], ["/pipeline", "Pipeline", BarChart3],
+  ["/baixar", "Baixar App", Smartphone], ["/dashboard", "Dashboard", Home], ["/jd-ai", "JD AI", Bot], ["/inbox", "Inbox WhatsApp", MessageSquare], ["/pipeline", "Pipeline", BarChart3],
   ["/leads", "Leads", Users], ["/proposals", "Propostas", FileText], ["/automations", "Automações", Zap],
   ["/goals", "Metas", Target], ["/metrics", "Métricas", TrendingUp], ["/settings", "Minha conta", Settings],
 ] as const;

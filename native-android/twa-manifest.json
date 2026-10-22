@@ -1,0 +1,54 @@
+{
+  "packageId": "br.com.jdconsultoria.app",
+  "host": "crm-jd-consultoria.vercel.app",
+  "name": "JD Consultoria",
+  "launcherName": "JD Consultoria",
+  "display": "standalone",
+  "themeColor": "#050608",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#050608",
+  "enableNotifications": true,
+  "startUrl": "/app?platform=android",
+  "iconUrl": "https://crm-jd-consultoria.vercel.app/jd-logo.png",
+  "maskableIconUrl": "https://crm-jd-consultoria.vercel.app/jd-logo.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "C:\\Users\\User\\Documents\\ChatGPT\\App JD Consultoria\\signing\\jd-consultoria-release.keystore",
+    "alias": "jd-consultoria"
+  },
+  "appVersionName": "3",
+  "appVersionCode": 3,
+  "shortcuts": [
+    {
+      "name": "Conversas",
+      "shortName": "Conversas",
+      "url": "https://crm-jd-consultoria.vercel.app/app?platform=android",
+      "chosenIconUrl": "https://crm-jd-consultoria.vercel.app/jd-logo.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://crm-jd-consultoria.vercel.app/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://crm-jd-consultoria.vercel.app/",
+  "minSdkVersion": 24,
+  "orientation": "any",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "displayOverride": [],
+  "appVersion": "3"
+}

@@ -39,11 +39,13 @@ export function JdMobileApp() {
   const [online, setOnline] = useState(true);
   const [selectedOwnerId, setSelectedOwnerId] = useState("");
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
+  const [androidApp, setAndroidApp] = useState(false);
   const { data: crmData } = useSWR<{ users: CrmUser[] }>(isAdmin ? "/api/admin/crm" : null, fetcher);
   const ownerId = isAdmin ? selectedOwnerId : undefined;
   const inbox = useConversations(ownerId);
 
   useEffect(() => {
+    setAndroidApp(new URLSearchParams(window.location.search).get("platform") === "android");
     const update = () => setOnline(navigator.onLine);
     update();
     window.addEventListener("online", update);
@@ -72,16 +74,16 @@ export function JdMobileApp() {
         <Image src="/jd-logo.png" alt="JD" fill sizes="40px" className="object-cover"/>
       </span>
       <div className="min-w-0 flex-1">
-        <strong className="block truncate text-sm">App JD Consultoria</strong>
+        <strong className="block truncate text-sm">JD Consultoria</strong>
         <p className={cn("mt-0.5 flex items-center gap-1 truncate text-[10px] font-semibold", online ? "text-emerald-600" : "text-amber-600")}>
           {online ? <Wifi size={11} className="shrink-0"/> : <WifiOff size={11} className="shrink-0"/>}
           <span className="truncate">{online ? activeOwner ? `${activeOwner.name} · sincronização ativa` : "Conectado ao CRM" : "Sem conexão"}</span>
         </p>
       </div>
       {isAdmin && <span className="hidden items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 sm:inline-flex"><ShieldCheck size={12}/>Administrador</span>}
-      <Link href="/dashboard" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-blue-400 hover:text-blue-700 dark:border-slate-700" aria-label="Abrir CRM completo">
+      {!androidApp && <Link href="/dashboard" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-blue-400 hover:text-blue-700 dark:border-slate-700" aria-label="Abrir CRM completo">
         <LayoutDashboard size={18}/>
-      </Link>
+      </Link>}
     </header>
 
     {isAdmin && !focusedMobileChat && <div className="shrink-0 border-b border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900 sm:px-4">
@@ -126,7 +128,7 @@ export function JdMobileApp() {
             <p className="text-xs font-bold uppercase tracking-[.15em] text-blue-600">Aplicativo</p>
             <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Ajustes do App JD</h1>
             <div className="mt-5 grid gap-3 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"><Smartphone className="text-blue-600"/><h2 className="mt-3 font-bold">Instale na tela inicial</h2><p className="mb-4 mt-1 text-sm leading-6 text-slate-500">Use o CRM em tela cheia como aplicativo, sem depender da loja.</p><PwaInstallButton/></div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"><Smartphone className="text-blue-600"/><h2 className="mt-3 font-bold">{androidApp ? "Aplicativo Android" : "Instale na tela inicial"}</h2><p className="mb-4 mt-1 text-sm leading-6 text-slate-500">{androidApp ? "Você está usando o aplicativo oficial da JD Consultoria." : "Use o App JD em tela cheia, com ícone próprio no seu dispositivo."}</p>{androidApp ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"><strong>App instalado</strong><p className="mt-1 text-xs opacity-75">Versão Android conectada com segurança ao CRM.</p></div> : <PwaInstallButton/>}</div>
               <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"><strong className="text-sm">Conta conectada</strong><p className="mt-1 break-words text-xs text-slate-500">{session?.user?.name} · {session?.user?.email}</p><button type="button" onClick={() => void signOut({ callbackUrl: "/login" })} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-red-200 px-4 text-sm font-semibold text-red-600 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/30"><LogOut size={16}/>Sair do aplicativo</button></div>
               <div className="rounded-2xl border border-slate-200 bg-white p-5 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:bg-slate-900 md:col-span-2"><strong className="block text-sm text-slate-800 dark:text-slate-100">Privacidade</strong><p className="mt-2">O service worker não armazena conversas nem respostas das APIs. Apenas recursos estáticos da interface são mantidos para acelerar a abertura do aplicativo.</p></div>
             </div>

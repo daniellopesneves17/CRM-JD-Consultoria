@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "App JD Consultoria",
-    short_name: "App JD",
+    name: "JD Consultoria",
+    short_name: "JD Consultoria",
     description: "Central de atendimento e backups protegidos do WhatsApp da JD Consultoria.",
     start_url: "/app",
     scope: "/",
@@ -18,7 +18,6 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       { name: "Conversas", short_name: "Conversas", url: "/app", icons: [{ src: "/jd-logo.png", sizes: "512x512" }] },
-      { name: "CRM completo", short_name: "CRM", url: "/dashboard", icons: [{ src: "/jd-logo.png", sizes: "512x512" }] },
     ],
   };
 }

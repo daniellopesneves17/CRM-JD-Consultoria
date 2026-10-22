@@ -13,3 +13,14 @@ frontend/.data/
 .vercel/
 *.log
 *.tsbuildinfo
+
+# Empacotamento nativo Android (chaves nunca entram no Git).
+native-android/.gradle/
+native-android/build/
+native-android/app/build/
+native-android/*.apk
+native-android/*.aab
+native-android/*.idsig
+native-android/*.jks
+native-android/*.keystore
+native-android/.signing-credentials
