@@ -6,12 +6,47 @@ export const PUBLIC_ASSET_TYPES = new Set(["image/png", "image/jpeg", "image/web
 export const PROFIT_PROOF_MAX_BYTES = 20 * 1024 * 1024;
 export const PROFIT_PROOF_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "application/pdf"]);
 export const WHATSAPP_BACKUP_BUCKET = "chat-backups";
+export const WHATSAPP_BACKUP_MAX_BYTES = 100 * 1024 * 1024;
+const WHATSAPP_BACKUP_CONTENT_TYPE = "application/vnd.jd-consultoria.whatsapp-backup+json";
+
+let backupBucketReady: Promise<void> | undefined;
 
 function storageClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Supabase Storage não configurado. Defina NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SECRET_KEY no servidor.");
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
+async function ensureWhatsAppBackupBucket() {
+  backupBucketReady ??= (async () => {
+    const client = storageClient();
+    const { data, error } = await client.storage.getBucket(WHATSAPP_BACKUP_BUCKET);
+    if (!error && data) {
+      if (data.public) {
+        const { error: updateError } = await client.storage.updateBucket(WHATSAPP_BACKUP_BUCKET, {
+          public: false,
+          fileSizeLimit: WHATSAPP_BACKUP_MAX_BYTES,
+          allowedMimeTypes: [WHATSAPP_BACKUP_CONTENT_TYPE],
+        });
+        if (updateError) throw new Error(`Falha ao proteger o cofre de backups: ${updateError.message}`);
+      }
+      return;
+    }
+
+    const { error: createError } = await client.storage.createBucket(WHATSAPP_BACKUP_BUCKET, {
+      public: false,
+      fileSizeLimit: WHATSAPP_BACKUP_MAX_BYTES,
+      allowedMimeTypes: [WHATSAPP_BACKUP_CONTENT_TYPE],
+    });
+    if (createError && !/already exists|duplicate/i.test(createError.message)) {
+      throw new Error(`Falha ao preparar o cofre de backups: ${createError.message}`);
+    }
+  })().catch((error) => {
+    backupBucketReady = undefined;
+    throw error;
+  });
+  return backupBucketReady;
 }
 
 export async function uploadFile(bucket: "proposals" | "audios" | "assets", path: string, data: Uint8Array, contentType: string) {
@@ -100,8 +135,9 @@ export async function createProfitProofViewUrl(path: string) {
 }
 
 export async function uploadWhatsAppBackup(path: string, data: Uint8Array) {
+  await ensureWhatsAppBackupBucket();
   const { error } = await storageClient().storage.from(WHATSAPP_BACKUP_BUCKET).upload(path, data, {
-    contentType: "application/vnd.jd-consultoria.whatsapp-backup+json",
+    contentType: WHATSAPP_BACKUP_CONTENT_TYPE,
     cacheControl: "0",
     upsert: false,
   });
@@ -109,8 +145,9 @@ export async function uploadWhatsAppBackup(path: string, data: Uint8Array) {
 }
 
 export async function listWhatsAppBackups(ownerId: string) {
+  await ensureWhatsAppBackupBucket();
   const { data, error } = await storageClient().storage.from(WHATSAPP_BACKUP_BUCKET).list(ownerId, {
-    limit: 100,
+    limit: 1000,
     sortBy: { column: "created_at", order: "desc" },
   });
   if (error) throw new Error(`Falha ao listar backups: ${error.message}`);
@@ -118,12 +155,14 @@ export async function listWhatsAppBackups(ownerId: string) {
 }
 
 export async function downloadWhatsAppBackup(path: string) {
+  await ensureWhatsAppBackupBucket();
   const { data, error } = await storageClient().storage.from(WHATSAPP_BACKUP_BUCKET).download(path);
   if (error) throw new Error(`Falha ao abrir o backup: ${error.message}`);
   return new Uint8Array(await data.arrayBuffer());
 }
 
 export async function deleteWhatsAppBackup(path: string) {
+  await ensureWhatsAppBackupBucket();
   const { error } = await storageClient().storage.from(WHATSAPP_BACKUP_BUCKET).remove([path]);
   if (error) throw new Error(`Falha ao excluir o backup: ${error.message}`);
 }

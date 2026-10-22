@@ -15,13 +15,13 @@
   "startUrl": "/app?platform=android",
   "iconUrl": "https://crm-jd-consultoria.vercel.app/jd-logo.png",
   "maskableIconUrl": "https://crm-jd-consultoria.vercel.app/jd-logo.png",
-  "splashScreenFadeOutDuration": 300,
+  "splashScreenFadeOutDuration": 100,
   "signingKey": {
     "path": "C:\\Users\\User\\Documents\\ChatGPT\\App JD Consultoria\\signing\\jd-consultoria-release.keystore",
     "alias": "jd-consultoria"
   },
-  "appVersionName": "3",
-  "appVersionCode": 3,
+  "appVersionName": "4",
+  "appVersionCode": 4,
   "shortcuts": [
     {
       "name": "Conversas",
@@ -42,7 +42,7 @@
   "isMetaQuest": false,
   "fullScopeUrl": "https://crm-jd-consultoria.vercel.app/",
   "minSdkVersion": 24,
-  "orientation": "any",
+  "orientation": "default",
   "fingerprints": [],
   "additionalTrustedOrigins": [],
   "retainedBundles": [],
@@ -50,5 +50,5 @@
   "fileHandlers": [],
   "launchHandlerClientMode": "",
   "displayOverride": [],
-  "appVersion": "3"
+  "appVersion": "4"
 }

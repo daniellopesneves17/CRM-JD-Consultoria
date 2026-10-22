@@ -41,13 +41,13 @@ def twaManifest = [
     // - icon: Name of the resource in the drawable folder to use as an icon.
     shortcuts: [[name:'Conversas', short_name:'Conversas', url:'https://crm-jd-consultoria.vercel.app/app?platform=android', icon:'shortcut_0']],
     // The duration of fade out animation in milliseconds to be played when removing splash screen.
-    splashScreenFadeOutDuration: 300,
+    splashScreenFadeOutDuration: 100,
     generatorApp: 'bubblewrap-cli', // Application that generated the Android Project
     // The fallback strategy for when Trusted Web Activity is not available. Possible values are
     // 'customtabs' and 'webview'.
     fallbackType: 'customtabs',
     enableSiteSettingsShortcut: 'true',
-    orientation: 'any',
+    orientation: 'default',
 ]
 
 android {
@@ -57,8 +57,8 @@ android {
         applicationId "br.com.jdconsultoria.app"
         minSdkVersion 24
         targetSdkVersion 36
-        versionCode 3
-        versionName "3"
+        versionCode 4
+        versionName "4"
 
         // The name for the application
         resValue "string", "appName", twaManifest.name

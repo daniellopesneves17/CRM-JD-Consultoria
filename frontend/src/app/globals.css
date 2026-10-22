@@ -53,7 +53,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .dark .recharts-default-tooltip { background:#0d0f13 !important; border:1px solid #354052 !important; border-radius:12px !important; color:#f8fafc !important; }
 .dark .recharts-tooltip-label { color:#f8fafc !important; }
 
-.jd-mobile-shell { isolation:isolate; overscroll-behavior:none; }
+@keyframes jd-app-enter { from { opacity:.82; transform:translate3d(0,3px,0); } to { opacity:1; transform:translate3d(0,0,0); } }
+.jd-mobile-shell { isolation:isolate; overscroll-behavior:none; animation:jd-app-enter .16s cubic-bezier(.22,1,.36,1) both; }
 @media (max-height: 540px) and (orientation: landscape) {
   .jd-app-header { min-height:3.5rem; padding-top:.375rem; padding-bottom:.375rem; }
   .jd-chat-focused .jd-app-header, .jd-chat-focused > nav { display:none; }
@@ -95,4 +96,4 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .jd-ai-suggestion { padding:.5rem .75rem !important; }
   .jd-ai-suggestion svg { margin-bottom:.25rem !important; }
 }
-@media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition-duration:.01ms !important; } .goal-meter-fill { animation: none; width: var(--meter-width); } }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition-duration:.01ms !important; animation-duration:.01ms !important; } .goal-meter-fill { animation: none; width: var(--meter-width); } }

@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import useSWR from "swr";
 import {
   Archive,
+  CircleDot,
   LayoutDashboard,
   LogOut,
   MessageCircle,
@@ -18,12 +19,13 @@ import {
 } from "lucide-react";
 import { BackupVault } from "@/components/app/BackupVault";
 import { PwaInstallButton } from "@/components/app/PwaInstallButton";
+import { WhatsAppStatuses } from "@/components/app/WhatsAppStatuses";
 import { ChatWindow } from "@/components/inbox/ChatWindow";
 import { ConversationList } from "@/components/inbox/ConversationList";
 import { useConversations } from "@/hooks/useConversations";
 import { cn } from "@/lib/utils";
 
-type Tab = "chats" | "backups" | "settings";
+type Tab = "chats" | "status" | "backups" | "settings";
 type CrmUser = { id: string; name: string; email: string; active: boolean; crmEnabled: boolean; whatsappConnected: boolean };
 
 const fetcher = async <T,>(url: string) => {
@@ -61,6 +63,7 @@ export function JdMobileApp() {
   const focusedMobileChat = tab === "chats" && mobileChatOpen;
   const tabs: Array<{ id: Tab; label: string; icon: typeof MessageCircle }> = [
     { id: "chats", label: "Conversas", icon: MessageCircle },
+    { id: "status", label: "Status", icon: CircleDot },
     { id: "backups", label: "Backups", icon: Archive },
     { id: "settings", label: "Ajustes", icon: Settings },
   ];
@@ -123,6 +126,7 @@ export function JdMobileApp() {
           />
         </div>}
         {tab === "backups" && <BackupVault ownerId={ownerId}/>}
+        {tab === "status" && <WhatsAppStatuses ownerId={ownerId}/>}
         {tab === "settings" && <div className="scrollbar h-full overflow-y-auto overscroll-contain px-4 py-5 pb-8 sm:px-6 sm:py-7">
           <div className="mx-auto max-w-4xl">
             <p className="text-xs font-bold uppercase tracking-[.15em] text-blue-600">Aplicativo</p>
@@ -141,7 +145,7 @@ export function JdMobileApp() {
       "z-40 min-h-[calc(4.5rem+env(safe-area-inset-bottom))] shrink-0 items-start justify-around border-t border-slate-200 bg-white/95 px-2 pb-[env(safe-area-inset-bottom)] pt-1 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95",
       focusedMobileChat ? "hidden md:flex" : "flex",
     )}>
-      {tabs.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => { setTab(id); setMobileChatOpen(false); }} aria-current={tab === id ? "page" : undefined} className={cn("flex min-h-14 min-w-20 flex-col items-center justify-center gap-0.5 rounded-xl px-3 text-[10px] font-bold transition", tab === id ? "text-blue-700 dark:text-blue-300" : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200")}><span className={cn("grid h-8 w-12 place-items-center rounded-full", tab === id && "bg-blue-50 dark:bg-blue-950/40")}><Icon size={19}/></span>{label}</button>)}
+      {tabs.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => { setTab(id); setMobileChatOpen(false); }} aria-current={tab === id ? "page" : undefined} className={cn("flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[10px] font-bold transition sm:max-w-32", tab === id ? "text-blue-700 dark:text-blue-300" : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200")}><span className={cn("grid h-8 w-12 place-items-center rounded-full", tab === id && "bg-blue-50 dark:bg-blue-950/40")}><Icon size={19}/></span>{label}</button>)}
     </nav>
   </div>;
 }

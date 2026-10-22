@@ -4,13 +4,12 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "JD Consultoria",
     short_name: "JD Consultoria",
-    description: "Central de atendimento e backups protegidos do WhatsApp da JD Consultoria.",
+    description: "Central de atendimento, Status e backups protegidos do WhatsApp da JD Consultoria.",
     start_url: "/app",
     scope: "/",
     display: "standalone",
     background_color: "#050608",
     theme_color: "#050608",
-    orientation: "any",
     categories: ["business", "productivity", "communication"],
     icons: [
       { src: "/apple-touch-icon.png", sizes: "180x180", type: "image/png", purpose: "any" },

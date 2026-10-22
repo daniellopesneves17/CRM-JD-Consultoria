@@ -32,6 +32,11 @@ export async function POST(request: Request) {
       const exists = await prisma.user.count({ where: { id: ownerId, active: true, crmEnabled: true } });
       if (!exists) return NextResponse.json({ error: "CRM do corretor não encontrado." }, { status: 404 });
     }
+    const indexedBackup = await prisma.whatsAppBackup.findFirst({
+      where: { ownerId, storagePath: body.path },
+      select: { id: true },
+    });
+    if (!indexedBackup) return NextResponse.json({ error: "Backup não encontrado no cofre do Supabase." }, { status: 404 });
     const encrypted = await downloadWhatsAppBackup(body.path);
     const payload = await decryptWhatsAppBackup(encrypted, body.password);
     if (payload.owner.id !== ownerId) return NextResponse.json({ error: "Este backup pertence a outro CRM." }, { status: 403 });
@@ -59,13 +64,16 @@ export async function POST(request: Request) {
       preview: backupConversationPreview(conversation),
     }));
     if (body.page === 1) {
-      await prisma.accessLog.create({
-        data: {
-          userId: access.session.user.id,
-          action: "whatsapp_backup_opened",
-          detail: JSON.stringify({ ownerId, exportedAt: payload.exportedAt, conversationCount: payload.conversations.length }),
-        },
-      });
+      await prisma.$transaction([
+        prisma.whatsAppBackup.update({ where: { id: indexedBackup.id }, data: { lastOpenedAt: new Date() } }),
+        prisma.accessLog.create({
+          data: {
+            userId: access.session.user.id,
+            action: "whatsapp_backup_opened",
+            detail: JSON.stringify({ ownerId, exportedAt: payload.exportedAt, conversationCount: payload.conversations.length }),
+          },
+        }),
+      ]);
     }
     return NextResponse.json({
       backup: {

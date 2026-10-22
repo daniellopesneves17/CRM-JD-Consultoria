@@ -10,34 +10,50 @@ datasource db {
 }
 
 model User {
-  id                String             @id @default(cuid())
-  name              String
-  email             String             @unique
-  passwordHash      String
-  role              Role               @default(CORRETOR)
-  phone             String?
-  avatarUrl         String?
-  active            Boolean            @default(true)
-  crmEnabled        Boolean            @default(true)
-  uazapiBaseUrl     String?
-  uazapiToken       String?
-  uazapiInstance    String?
-  disabledReason    String?
-  lastLoginAt       DateTime?
-  loginCount        Int                @default(0)
-  sessionVersion    Int                @default(0)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  leads             Lead[]
-  goals             Goal[]
-  messages          Message[]
-  accessLogs        AccessLog[]
-  notifications     Notification[]
-  jdAiConversations JdAiConversation[]
+  id                    String                 @id @default(cuid())
+  name                  String
+  email                 String                 @unique
+  passwordHash          String
+  role                  Role                   @default(CORRETOR)
+  phone                 String?
+  avatarUrl             String?
+  active                Boolean                @default(true)
+  crmEnabled            Boolean                @default(true)
+  uazapiBaseUrl         String?
+  uazapiToken           String?
+  uazapiInstance        String?
+  disabledReason        String?
+  lastLoginAt           DateTime?
+  loginCount            Int                    @default(0)
+  sessionVersion        Int                    @default(0)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  leads                 Lead[]
+  goals                 Goal[]
+  messages              Message[]
+  accessLogs            AccessLog[]
+  notifications         Notification[]
+  jdAiConversations     JdAiConversation[]
   automationPreferences AutomationPreference[]
-  manualProfits     ManualProfit[]     @relation("ProfitBeneficiary")
-  createdProfits    ManualProfit[]     @relation("ProfitCreator")
-  voidedProfits     ManualProfit[]     @relation("ProfitVoider")
+  whatsappBackups       WhatsAppBackup[]
+  manualProfits         ManualProfit[]         @relation("ProfitBeneficiary")
+  createdProfits        ManualProfit[]         @relation("ProfitCreator")
+  voidedProfits         ManualProfit[]         @relation("ProfitVoider")
+}
+
+model WhatsAppBackup {
+  id                String    @id @default(cuid())
+  owner             User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId           String
+  storagePath       String    @unique
+  fileName          String
+  byteSize          Int
+  conversationCount Int
+  messageCount      Int
+  createdAt         DateTime  @default(now())
+  lastOpenedAt      DateTime?
+
+  @@index([ownerId, createdAt])
 }
 
 model AccessLog {
@@ -148,9 +164,9 @@ model Lead {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
+  @@unique([userId, phone])
   @@index([stage, temperature, score])
   @@index([userId, lastActivityAt])
-  @@unique([userId, phone])
   @@index([phone])
   @@index([stage, contractEndDate])
   @@index([createdAt])
@@ -351,20 +367,20 @@ model Activity {
 }
 
 model AutomationRule {
-  id             String    @id @default(cuid())
+  id             String                 @id @default(cuid())
   name           String
-  description    String    @default("")
+  description    String                 @default("")
   trigger        String
   delayHours     Int
   template       String
-  model          String    @default("gpt-4o")
+  model          String                 @default("gpt-4o")
   config         Json?
-  sentCount      Int       @default(0)
-  convertedCount Int       @default(0)
+  sentCount      Int                    @default(0)
+  convertedCount Int                    @default(0)
   lastRunAt      DateTime?
-  active         Boolean   @default(true)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  active         Boolean                @default(true)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
   preferences    AutomationPreference[]
 }
 

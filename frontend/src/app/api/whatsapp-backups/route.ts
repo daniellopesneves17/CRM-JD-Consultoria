@@ -10,7 +10,6 @@ import {
 } from "@/lib/whatsapp-backup";
 import {
   deleteWhatsAppBackup,
-  downloadWhatsAppBackup,
   listWhatsAppBackups,
   uploadWhatsAppBackup,
 } from "@/services/supabase-storage";
@@ -43,6 +42,37 @@ function authorizedPath(ownerId: string, path: string) {
   return normalized;
 }
 
+async function syncBackupIndex(ownerId: string) {
+  const files = await listWhatsAppBackups(ownerId);
+  const storagePaths = files.map((file) => `${ownerId}/${file.name}`);
+  await Promise.all(files.map((file) => {
+    const parsed = parseWhatsAppBackupFileName(file.name);
+    const storageCreatedAt = file.created_at && !Number.isNaN(Date.parse(file.created_at)) ? file.created_at : null;
+    const createdAt = new Date(storageCreatedAt ?? parsed?.createdAt ?? Date.now());
+    return prisma.whatsAppBackup.upsert({
+      where: { storagePath: `${ownerId}/${file.name}` },
+      update: {
+        fileName: file.name,
+        byteSize: typeof file.metadata?.size === "number" ? file.metadata.size : 0,
+        conversationCount: parsed?.conversationCount ?? 0,
+        messageCount: parsed?.messageCount ?? 0,
+      },
+      create: {
+        ownerId,
+        storagePath: `${ownerId}/${file.name}`,
+        fileName: file.name,
+        byteSize: typeof file.metadata?.size === "number" ? file.metadata.size : 0,
+        conversationCount: parsed?.conversationCount ?? 0,
+        messageCount: parsed?.messageCount ?? 0,
+        createdAt,
+      },
+    });
+  }));
+  await prisma.whatsAppBackup.deleteMany({
+    where: { ownerId, ...(storagePaths.length ? { storagePath: { notIn: storagePaths } } : {}) },
+  });
+}
+
 export async function GET(request: Request) {
   const access = await requireUser();
   if ("response" in access) return access.response;
@@ -52,27 +82,19 @@ export async function GET(request: Request) {
       { id: access.session.user.id, role: access.session.user.role },
       params.get("ownerId"),
     );
-    const downloadPath = params.get("download");
-    if (downloadPath) {
-      const path = authorizedPath(owner.id, downloadPath);
-      const file = await downloadWhatsAppBackup(path);
-      return new Response(file, {
-        headers: {
-          "Content-Type": "application/vnd.jd-consultoria.whatsapp-backup+json",
-          "Content-Disposition": `attachment; filename="${path.split("/").at(-1)}"`,
-          "Cache-Control": "private, no-store",
-        },
-      });
-    }
-    const files = await listWhatsAppBackups(owner.id);
+    await syncBackupIndex(owner.id);
+    const files = await prisma.whatsAppBackup.findMany({ where: { ownerId: owner.id }, orderBy: { createdAt: "desc" } });
     return NextResponse.json({
       owner,
       items: files.map((file) => ({
-        path: `${owner.id}/${file.name}`,
-        name: file.name,
-        size: typeof file.metadata?.size === "number" ? file.metadata.size : 0,
-        createdAt: file.created_at,
-        ...parseWhatsAppBackupFileName(file.name),
+        id: file.id,
+        path: file.storagePath,
+        name: file.fileName,
+        size: file.byteSize,
+        createdAt: file.createdAt.toISOString(),
+        conversationCount: file.conversationCount,
+        messageCount: file.messageCount,
+        lastOpenedAt: file.lastOpenedAt?.toISOString() ?? null,
       })),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
@@ -144,6 +166,22 @@ export async function POST(request: Request) {
     const path = `${owner.id}/${fileName}`;
     const encrypted = await encryptWhatsAppBackup(payload, body.password);
     await uploadWhatsAppBackup(path, encrypted);
+    try {
+      await prisma.whatsAppBackup.create({
+        data: {
+          ownerId: owner.id,
+          storagePath: path,
+          fileName,
+          byteSize: encrypted.byteLength,
+          conversationCount: payload.conversations.length,
+          messageCount,
+          createdAt: exportedAt,
+        },
+      });
+    } catch (error) {
+      await deleteWhatsAppBackup(path).catch(() => undefined);
+      throw error;
+    }
     await prisma.accessLog.create({
       data: {
         userId: access.session.user.id,
@@ -154,6 +192,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       item: {
         path,
+        storage: "supabase",
         name: fileName,
         size: encrypted.byteLength,
         createdAt: exportedAt.toISOString(),
@@ -178,7 +217,10 @@ export async function DELETE(request: Request) {
       params.get("ownerId"),
     );
     const path = authorizedPath(owner.id, params.get("path") ?? "");
+    const indexed = await prisma.whatsAppBackup.findFirst({ where: { ownerId: owner.id, storagePath: path }, select: { id: true } });
+    if (!indexed) return NextResponse.json({ error: "Backup não encontrado." }, { status: 404 });
     await deleteWhatsAppBackup(path);
+    await prisma.whatsAppBackup.delete({ where: { id: indexed.id } });
     await prisma.accessLog.create({
       data: {
         userId: access.session.user.id,

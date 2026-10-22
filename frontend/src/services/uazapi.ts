@@ -73,6 +73,32 @@ export async function findUazapiMessages(offset = 0, limit = 1000, config?: Uaza
   };
 }
 
+export async function findUazapiStatuses(offset = 0, limit = 50, config?: UazapiConfig) {
+  const result = await request("/message/find", { chatid: "status@broadcast", offset, limit }, config);
+  const page = paginatedRecords(result, "messages", offset, limit);
+  return { statuses: page.records, hasMore: page.hasMore, nextOffset: page.nextOffset };
+}
+
+export async function findUazapiMessage(id: string, config?: UazapiConfig) {
+  const result = await request("/message/find", { id }, config);
+  const messages = Array.isArray(result.messages) ? result.messages as UazapiRecord[] : [];
+  return messages[0] ?? null;
+}
+
+export function sendUazapiTextStatus(
+  text: string,
+  options: { backgroundColor: number; font: number; maxRecipients: number },
+  config?: UazapiConfig,
+) {
+  return request("/send/status", {
+    type: "text",
+    text,
+    background_color: options.backgroundColor,
+    font: options.font,
+    max_recipients: options.maxRecipients,
+  }, config);
+}
+
 export async function downloadUazapiMessage(id: string, config?: UazapiConfig) {
   return request("/message/download", { id, return_link: true, return_base64: false, generate_mp3: true }, config);
 }
